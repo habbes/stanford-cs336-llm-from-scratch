@@ -92,6 +92,22 @@ class NaiveBPE:
             old_cache = new_cache
         self.merged_cache = old_cache
 
+def test_naive_bpe():
+    sample_text = """low low low low low
+lower lower widest widest widest
+newest newest newest newest newest newest
+    """
+
+    bpe = NaiveBPE(sample_text, 6, pretoken_regex=r"\w+")
+    bpe.run()
+
+    assert bpe.vocab[0] == b"<|endoftext|>"
+    assert bpe.vocab[257] == b"st"
+    assert bpe.vocab[258] == b"est"
+    assert bpe.vocab[259] == b"ow"
+    assert bpe.vocab[260] == b"low"
+    assert bpe.vocab[261] == b"west"
+    assert bpe.vocab[262] == b"ne"
 
 if __name__ == "__main__": 
     sample_text = """low low low low low
@@ -103,5 +119,5 @@ newest newest newest newest newest newest
     bpe.run()
 
     print("vocab", bpe.vocab)
-
-                    
+    test_naive_bpe()
+    print("Test passed!")
