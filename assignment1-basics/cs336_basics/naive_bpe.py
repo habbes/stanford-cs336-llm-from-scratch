@@ -28,9 +28,22 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     return vocab, merged_cache
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
+    """
+    Initialize a vocabulary of tokens including the specified
+    special tokens. In BPE, we initialize the vocabulary
+    by assigning each byte value (0-255) a unique token,
+    therefore each unicode character can be represented
+    by one or more tokens (including spaces, punctuation, etc.).
+
+    Args:
+        special_tokens (list[bytes]): List of special tokens to include in the vocabulary.
+    
+    Returns:
+        list[bytes]: A list of bytestring tokens representing the vocabulary. The index
+        of each item in the list corresponds to its numerical token ID.
+    """
     vocab = special_tokens + [chr(i).encode('utf-8') for i in range(256)]
     return vocab
-
 
 def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], int]:
     pretokens = re.finditer(pretoken_regex, corpus)
