@@ -12,3 +12,23 @@ I'd have to copy them over manually. (TODO: consider creating forks and submodul
 - Assignment 1:
     - [Local folder](./assignment1-basics/)
     - [Official repository](https://github.com/stanford-cs336/assignment1-basics)
+
+
+
+Use [uv]() to create a python environemtn for each project (see each project's `README.md`).
+
+To run python script, activate the project's environment in the terminal using:
+
+```sh
+# On Powershell/Windows
+.\.venv\Scripts\activate
+
+# On macOs/Linux
+source .venv/bin/activate
+```
+
+Use the environment's python interpreter in VS Code to get better intellisense support.
+
+![alt text](python-interpreter-status-bar.png)
+
+![alt text](select-python-interpreter-path)
