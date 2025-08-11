@@ -10,12 +10,10 @@ I'm not using submodules. This means if fixes are made to the official repo and 
 I'd have to copy them over manually. (TODO: consider creating forks and submodules).
 
 - Assignment 1:
-    - [Local folder](./assignment1-basics/)
-    - [Official repository](https://github.com/stanford-cs336/assignment1-basics)
+  - [Local folder](./assignment1-basics/)
+  - [Official repository](https://github.com/stanford-cs336/assignment1-basics)
 
-
-
-Use [uv]() to create a python environemtn for each project (see each project's `README.md`).
+Use [uv](https://docs.astral.sh/uv/) to create a python environemtn for each project (see each project's `README.md`).
 
 To run python script, activate the project's environment in the terminal using:
 
