@@ -21,11 +21,15 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     Returns:
         tuple: A tuple containing the vocabulary and the pretokenized cache.
     """
+    # Keeps track of merges that occurred
+    # Each list item is a tuple of bytes (<token1>, <token2>), representing that <token1> was merged with <token2>.
+    # The merges should be ordered by order of creation
+    merges: list[tuple[bytes, bytes]] = []
     vocab = initialize_vocab(special_tokens)
     pretokenized_cache = pretokenize(corpus, pretoken_regex)
-    merged_cache = merge_pairs(vocab, pretokenized_cache, num_merges)
+    merge_pairs(vocab, pretokenized_cache, num_merges, merges)
     
-    return vocab, merged_cache
+    return vocab, merges
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
     """
@@ -60,7 +64,7 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
     print("pretokenized cache", cache)
     return cache
 
-def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int) -> tuple[list[bytes], dict[tuple[bytes], int]]:
+def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]]) -> tuple[list[bytes], dict[tuple[bytes], int]]:
     old_cache = pretokenized_cache
     for merge_step in range(num_merges):
         print("Running merge iteration", merge_step)
@@ -72,6 +76,10 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
 
         # merge the best pair in the pretokenized cache
         new_cache = merge_token_pair(best_pair, old_cache)
+
+        # Keep track of the merges that occurred since
+        # since it's required by the assignment.
+        merges.append(best_pair)
 
         print("New cache size after merge", merge_step, ":", len(new_cache))
         print("New cache after merge", merge_step, ":", new_cache)

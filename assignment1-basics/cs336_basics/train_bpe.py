@@ -1,4 +1,4 @@
-
+from naive_bpe import naive_bpe
 
 def train_bpe(
         input_path: str,
@@ -22,4 +22,12 @@ def train_bpe(
                 `tuple` of `bytes` (<token1>, <token2>) representing that <token1>
                 was merged with <token2>. The merges are ordered by order of creation.
     """
-    pass
+
+    # TODO: Chunk input file for efficiency
+    # TODO: use a more efficient bpe implementation
+    with open(input_path, 'r', encoding='utf-8') as f:
+        corpus = f.read()
+        (vocab, merges) = naive_bpe(corpus, vocab_size, special_tokens)
+
+        vocab_dict = {i: token for i, token in enumerate(vocab)}
+        return vocab_dict, merges
