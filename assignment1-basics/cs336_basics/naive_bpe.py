@@ -60,17 +60,17 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
             cache[token_key] = 0
         cache[token_key] += 1
     
-    print("pretokenized cache size", len(cache))
-    print("pretokenized cache", cache)
+    # print("pretokenized cache size", len(cache))
+    # print("pretokenized cache", cache)
     return cache
 
 def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]]) -> tuple[list[bytes], dict[tuple[bytes], int]]:
     old_cache = pretokenized_cache
     for merge_step in range(num_merges):
-        print("Running merge iteration", merge_step)
+        # print("Running merge iteration", merge_step)
         best_pair, best_count = find_best_pair(old_cache)
             
-        print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
+        # print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
         
         vocab.append(b"".join(best_pair))
 
@@ -81,8 +81,8 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
         # since it's required by the assignment.
         merges.append(best_pair)
 
-        print("New cache size after merge", merge_step, ":", len(new_cache))
-        print("New cache after merge", merge_step, ":", new_cache)
+        # print("New cache size after merge", merge_step, ":", len(new_cache))
+        # print("New cache after merge", merge_step, ":", new_cache)
         old_cache = new_cache
 
     return old_cache

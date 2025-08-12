@@ -1,4 +1,4 @@
-from naive_bpe import naive_bpe
+from .naive_bpe import naive_bpe
 
 def train_bpe(
         input_path: str,
