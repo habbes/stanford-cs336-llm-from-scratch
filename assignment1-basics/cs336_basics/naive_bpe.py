@@ -29,6 +29,7 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     pretokenized_cache = pretokenize(corpus, pretoken_regex)
     merge_pairs(vocab, pretokenized_cache, num_merges, merges)
     
+    print("output vocab", vocab);
     return vocab, merges
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
@@ -46,7 +47,7 @@ def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
         list[bytes]: A list of bytestring tokens representing the vocabulary. The index
         of each item in the list corresponds to its numerical token ID.
     """
-    vocab = special_tokens + [chr(i).encode('utf-8') for i in range(256)]
+    vocab = [s if isinstance(s, bytes) else s.encode('utf-8') for s in special_tokens] + [chr(i).encode('utf-8') for i in range(256)]
     return vocab
 
 def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], int]:
@@ -143,7 +144,7 @@ newest newest newest newest newest newest
     vocab, _ = naive_bpe(
         corpus=sample_text,
         num_merges=6,
-        special_tokens=[b'<|endoftext|>'],
+        special_tokens=['<|endoftext|>'],
         pretoken_regex=r"\w+")
 
     assert vocab[0] == b"<|endoftext|>"
@@ -154,6 +155,12 @@ newest newest newest newest newest newest
     assert vocab[261] == b"west"
     assert vocab[262] == b"ne"
     assert len(vocab) == 256 + 7  # 256 byte values + 1 special token + 6 merges
+
+    vocab = {i: token for i, token in enumerate(vocab)}
+    vocabs_without_specials = [word for word in vocab.values() if word != b"<|endoftext|>"]
+    for word_bytes in vocabs_without_specials:
+        assert b"<|" not in word_bytes
+
     print("Test passed!")
 
 if __name__ == "__main__": 
