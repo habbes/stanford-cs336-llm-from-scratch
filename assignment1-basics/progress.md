@@ -9,6 +9,7 @@ I used this to keep track of my progress to remember where I left off, in case I
 - Tests currently fail
 - Next steps:
   - Fix tests (okay if speed test fails, but some correctness tests should pass)
+    - To fix: Found that special token <|endoftext|> gets split into sub tokens: `b'<|'`', `b'endoftext'` and `b'|>'`.
   - Profile performance (recommended tools: cProfile, scalene)
   - Create more efficient version of `train_bpe` with multiprocessing
   - Bonus: experiment with speeding some parts using Rust

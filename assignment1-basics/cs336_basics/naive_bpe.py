@@ -137,8 +137,8 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
 
 def test_naive_bpe():
     sample_text = """low low low low low
-lower lower widest widest widest
-newest newest newest newest newest newest
+lower lower widest widest widest <|endoftext|>
+newest newest newest newest <|endoftext|> newest newest
     """
 
     vocab, _ = naive_bpe(
