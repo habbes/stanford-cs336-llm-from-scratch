@@ -9,7 +9,8 @@ I used this to keep track of my progress to remember where I left off, in case I
 - Tests currently fail
 - Next steps:
   - I implemented splitting of the corpus on special tokens so that each segment could be pretokenized and merged
-     indepedently, but train_bpe and train_bpe_special_tokens tests are still failing.
+     indepedently, but train_bpe is failing and the train_bpe_special_tokens is not terminating, it appear
+     to get stuck at the last segment.
      need to be the train_bpe test more closely to see what the expected result is and why it's failing.
   - Profile performance (recommended tools: cProfile, scalene)
   - Create more efficient version of `train_bpe` with multiprocessing
