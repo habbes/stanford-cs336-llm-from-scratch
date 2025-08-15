@@ -8,8 +8,9 @@ I used this to keep track of my progress to remember where I left off, in case I
 - To run the `train_bpe` tests run `uv run pytest tests/test_train_bpe.py`
 - Tests currently fail
 - Next steps:
-  - I fixed the issue with special tokens getting tokenized, but tests still fail.
-    - I probably need to also ensure that I do not merge across text boundaries delimited by these special tokens.
+  - I implemented splitting of the corpus on special tokens so that each segment could be pretokenized and merged
+     indepedently, but train_bpe and train_bpe_special_tokens tests are still failing.
+     need to be the train_bpe test more closely to see what the expected result is and why it's failing.
   - Profile performance (recommended tools: cProfile, scalene)
   - Create more efficient version of `train_bpe` with multiprocessing
   - Bonus: experiment with speeding some parts using Rust

@@ -28,15 +28,21 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     # The merges should be ordered by order of creation
     merges: list[tuple[bytes, bytes]] = []
     vocab = initialize_vocab(special_tokens)
-    # remove special tokens before pretokenization since we don't
-    # want to tokenize them down. Ideally we should also
-    # not pretokenize across document boundaries, but I'll
-    # deal with that when supporting chunking and larger documents.
-    corpus = remove_special_tokens(corpus, special_tokens)
-    pretokenized_cache = pretokenize(corpus, pretoken_regex)
-    merge_pairs(vocab, pretokenized_cache, num_merges, merges)
+
+    corpus_segments = split_on_special_tokens(corpus, special_tokens)
+    print("Number of corpus segments after splitting on special tokens:", len(corpus_segments))
+
+    for i, segment in enumerate(corpus_segments):
+        print("Processing segment:", i + 1, "of", len(corpus_segments))
+        if not segment:
+            print("Skipping empty segment")
+            continue
+
+        # print("Processing segment:", segment)
+        pretokenized_cache = pretokenize(segment, pretoken_regex)
+        merge_pairs(vocab, pretokenized_cache, num_merges, merges)
     
-    print("output vocab", vocab);
+    # print("output vocab", vocab);
     return vocab, merges
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
@@ -64,6 +70,14 @@ def remove_special_tokens(corpus: str, special_tokens: list[bytes|str]) -> str:
     for token in special_tokens:
         corpus = corpus.replace(token.decode("utf-8") if isinstance(token, bytes) else token, "")
     return corpus
+
+def split_on_special_tokens(corpus: str, escaped_special_tokens: list[bytes|str]) -> list[str]:
+    """
+    Split the corpus on special tokens so that we don't merge across
+    document boundaries.
+    """
+    escaped_special_tokens = [token.decode("utf-8").replace('|', '\\|') if isinstance(token, bytes) else token.replace('|', '\\|') for token in escaped_special_tokens]
+    return re.split("|".join(escaped_special_tokens), corpus)
 
 def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], int]:
     """
@@ -99,6 +113,9 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
         best_pair, best_count = find_best_pair(old_cache)
             
         # print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
+        if best_pair is None:
+            # print("No more pairs to merge, stopping early.")
+            return # Or return from method?
         
         vocab.append(b"".join(best_pair))
 
