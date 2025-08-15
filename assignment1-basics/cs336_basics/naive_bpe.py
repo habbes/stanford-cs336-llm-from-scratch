@@ -5,6 +5,8 @@
 
 import regex as re
 
+# The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
+# In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
 # See: https://github.com/openai/tiktoken/pull/234/files 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -26,6 +28,11 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     # The merges should be ordered by order of creation
     merges: list[tuple[bytes, bytes]] = []
     vocab = initialize_vocab(special_tokens)
+    # remove special tokens before pretokenization since we don't
+    # want to tokenize them down. Ideally we should also
+    # not pretokenize across document boundaries, but I'll
+    # deal with that when supporting chunking and larger documents.
+    corpus = remove_special_tokens(corpus, special_tokens)
     pretokenized_cache = pretokenize(corpus, pretoken_regex)
     merge_pairs(vocab, pretokenized_cache, num_merges, merges)
     
@@ -50,7 +57,27 @@ def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
     vocab = [s if isinstance(s, bytes) else s.encode('utf-8') for s in special_tokens] + [chr(i).encode('utf-8') for i in range(256)]
     return vocab
 
+def remove_special_tokens(corpus: str, special_tokens: list[bytes|str]) -> str:
+    """
+    Remove special tokens from the corpus.
+    """
+    for token in special_tokens:
+        corpus = corpus.replace(token.decode("utf-8") if isinstance(token, bytes) else token, "")
+    return corpus
+
 def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], int]:
+    """
+    Once you have a vocabulary, you could, in principle, count how often bytes occur next to each
+    other in your text and begin merging them starting with the most frequent pair of bytes.
+    However, this is quite computationally expensive, since we'd have to go take a full pass over the corpus each time we merge.
+    In addition, directly merging bytes across the corpus may result in tokens that differ only in punctuation (e.g., dog!vs.dog.).
+    These tokens would get completely different token IDs, even though they are likely to have high semantic similarity (since they differ only in punctuation).
+    To avoid this, we pre-tokenize the corpus. You can think of this as a coarse-grained tokenization over
+    the corpus that helps us count how often pairs of characters appear. For example, the word 'text' might be a
+    pre-token that appears 10 times. In this case, when we count how often the characters 't' and 'e' appear next to each other,
+    we will see that the word 'text' has 't' and 'e' adjacent and we can increment their count by 10 instead of looking through the corpus.
+    Since we're training a byte-level BPE model, each pre-token is represented as a sequence of UTF-8 bytes
+    """
     pretokens = re.finditer(pretoken_regex, corpus)
     cache: dict[tuple[bytes], int] = {}
     for match in pretokens:
@@ -138,12 +165,14 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
 def test_naive_bpe():
     sample_text = """low low low low low
 lower lower widest widest widest <|endoftext|>
-newest newest newest newest <|endoftext|> newest newest
+newest newest newest newest <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> newest newest
     """
+
+    num_merges=6
 
     vocab, _ = naive_bpe(
         corpus=sample_text,
-        num_merges=6,
+        num_merges=num_merges,
         special_tokens=['<|endoftext|>'],
         pretoken_regex=r"\w+")
 
