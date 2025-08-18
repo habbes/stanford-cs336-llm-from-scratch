@@ -11,7 +11,9 @@ I used this to keep track of my progress to remember where I left off, in case I
   - I implemented splitting of the corpus on special tokens so that each segment could be pretokenized and merged
      indepedently, but train_bpe is failing and the train_bpe_special_tokens is not terminating, it appear
      to get stuck at the last segment.
-     need to be the train_bpe test more closely to see what the expected result is and why it's failing.
+     Seems like it was terminating the merge operation before doing all 1k merges because it
+     reached a merge that returned no pair. Verify whether this is expected.
+     need to debug the train_bpe test more closely to see what the expected result is and why it's failing.
   - Profile performance (recommended tools: cProfile, scalene)
   - Create more efficient version of `train_bpe` with multiprocessing
   - Bonus: experiment with speeding some parts using Rust

@@ -33,16 +33,16 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     print("Number of corpus segments after splitting on special tokens:", len(corpus_segments))
 
     for i, segment in enumerate(corpus_segments):
-        print("Processing segment:", i + 1, "of", len(corpus_segments))
+        print("Processing segment:", i + 1, "of", len(corpus_segments), "segment length:", len(segment))
         if not segment:
             print("Skipping empty segment")
             continue
-
+        
         # print("Processing segment:", segment)
         pretokenized_cache = pretokenize(segment, pretoken_regex)
-        merge_pairs(vocab, pretokenized_cache, num_merges, merges)
+        merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=i == len(corpus_segments) - 1)
     
-    # print("output vocab", vocab);
+    print("Complete segment merges");
     return vocab, merges
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
@@ -106,25 +106,38 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
     # print("pretokenized cache", cache)
     return cache
 
-def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]]) -> tuple[list[bytes], dict[tuple[bytes], int]]:
+def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> tuple[list[bytes], dict[tuple[bytes], int]]:
     old_cache = pretokenized_cache
     for merge_step in range(num_merges):
-        # print("Running merge iteration", merge_step)
+        if debug:
+            print("Running merge iteration", merge_step, "target num merges:", num_merges)
         best_pair, best_count = find_best_pair(old_cache)
+
+        if debug:
+            print("Best pair found:", best_pair, "with count:", best_count)
             
         # print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
         if best_pair is None:
-            # print("No more pairs to merge, stopping early.")
-            return # Or return from method?
+            if debug:
+                print("No more pairs to merge, stopping early.")
+            return old_cache # Or return from method?
         
         vocab.append(b"".join(best_pair))
 
+        if debug:
+            print("Adding new token to vocab:", vocab[-1], "at index", len(vocab) - 1)
+
         # merge the best pair in the pretokenized cache
         new_cache = merge_token_pair(best_pair, old_cache)
+        if debug:
+            print("New cache size after merge", merge_step, ":", len(new_cache))
 
         # Keep track of the merges that occurred since
         # since it's required by the assignment.
         merges.append(best_pair)
+
+        if debug:
+            print("Merged pair:", best_pair, "into token:", vocab[-1])
 
         # print("New cache size after merge", merge_step, ":", len(new_cache))
         # print("New cache after merge", merge_step, ":", new_cache)
