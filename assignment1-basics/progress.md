@@ -13,6 +13,7 @@ I used this to keep track of my progress to remember where I left off, in case I
      to get stuck at the last segment.
      Seems like it was terminating the merge operation before doing all 1k merges because it
      reached a merge that returned no pair. Verify whether this is expected.
+     Check whether it's taking too long to create the vocab_dict in the train_bpe glue code.
      need to debug the train_bpe test more closely to see what the expected result is and why it's failing.
   - Profile performance (recommended tools: cProfile, scalene)
   - Create more efficient version of `train_bpe` with multiprocessing
