@@ -62,7 +62,7 @@ def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
         list[bytes]: A list of bytestring tokens representing the vocabulary. The index
         of each item in the list corresponds to its numerical token ID.
     """
-    vocab = [s if isinstance(s, bytes) else s.encode('utf-8') for s in special_tokens] + [chr(i).encode('utf-8') for i in range(256)]
+    vocab = [s if isinstance(s, bytes) else s.encode('utf-8') for s in special_tokens] + [bytes([i]) for i in range(256)]
     return vocab
 
 def remove_special_tokens(corpus: str, special_tokens: list[bytes|str]) -> str:
