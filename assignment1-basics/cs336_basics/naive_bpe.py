@@ -10,13 +10,13 @@ import regex as re
 # See: https://github.com/openai/tiktoken/pull/234/files 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[list[bytes], dict[tuple[bytes], int]]:
+def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[list[bytes], dict[tuple[bytes], int]]:
     """
     Naive BPE implementation.
     
     Args:
         corpus (str): The input text corpus.
-        num_merges (int): Number of merge operations to perform.
+        vocab_size (int): Desired output vocabulary size.
         special_tokens (list[bytes]): List of special tokens to initialize the vocabulary.
         pretoken_regex (str): Regular expression for pretokenization.
 
@@ -29,20 +29,22 @@ def naive_bpe(corpus: str, num_merges: int, special_tokens: list[bytes], pretoke
     merges: list[tuple[bytes, bytes]] = []
     vocab = initialize_vocab(special_tokens)
 
+    num_merges = vocab_size - len(vocab)
+
     corpus_segments = split_on_special_tokens(corpus, special_tokens)
     print("Number of corpus segments after splitting on special tokens:", len(corpus_segments))
 
     for i, segment in enumerate(corpus_segments):
-        print("Processing segment:", i + 1, "of", len(corpus_segments), "segment length:", len(segment))
+        # print("Processing segment:", i + 1, "of", len(corpus_segments), "segment length:", len(segment))
         if not segment:
             print("Skipping empty segment")
             continue
         
         # print("Processing segment:", segment)
         pretokenized_cache = pretokenize(segment, pretoken_regex)
-        merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=i == len(corpus_segments) - 1)
+        merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=False)
     
-    print("Complete segment merges");
+    print("Complete segments merges", len(corpus_segments), " vocab length", len(vocab), "merges length:", len(merges));
     return vocab, merges
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
