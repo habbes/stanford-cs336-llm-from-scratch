@@ -7,7 +7,10 @@ This repo contains my assignment attempts and notes from **Stanford's CS336: Lan
 
 Each assignment's folder was created by manually copying from the corresponding official repo of the assignment.
 I'm not using submodules. This means if fixes are made to the official repo and I want to pull them,
-I'd have to copy them over manually. (TODO: consider creating forks and submodules).
+I'd have to copy them over manually. Here's a [sample commit](https://github.com/habbes/stanford-cs336-llm-from-scratch/commit/19438a8471ff555cca99edaa7170d42883a10e14)
+where I copied over latest changes from the official repo. When doing so, be careful
+not to overwrite your own changes that you want to preserve, since some updates make
+changes to files you've modified (e.g. the adapters module).
 
 - Assignment 1:
   - [Local folder](./assignment1-basics/)
