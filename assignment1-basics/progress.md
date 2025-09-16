@@ -8,6 +8,13 @@ I used this to keep track of my progress to remember where I left off, in case I
 - To run the `train_bpe` tests run `uv run pytest tests/test_train_bpe.py`
 - Tests currently fail
 - Next steps:
+  - One of the bugs in my code is that I was taking the input vocab size as num merges, but vocab size also includes
+     special token and the first 256 byte values, which are not computed from merges. I updated the code to reflect this.
+     This bug was hard to spot because tests were failing for other reasons that didn't seem related to my code.
+     I thought maybe it was a bug in the text code. And after comparing against the latest version of the github repo,
+     I noticed differences in the test code. Particularly, the utf-8 encoding is explicitly set when reading files
+     in newer versions. My guess is that the older version that I'm running was not tested on Windows.
+     I'll update the repo based on the latest version and rerun the tests.
   - I implemented splitting of the corpus on special tokens so that each segment could be pretokenized and merged
      indepedently, but train_bpe is failing and the train_bpe_special_tokens is not terminating, it appear
      to get stuck at the last segment.
