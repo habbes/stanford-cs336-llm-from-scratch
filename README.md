@@ -33,3 +33,13 @@ Use the environment's python interpreter in VS Code to get better intellisense s
 ![alt text](python-interpreter-status-bar.png)
 
 ![alt text](select-python-interpreter-path.png)
+
+README docs use `wget` to download datasets. If you don't have wget you can
+use an alternative client or grab directly from the source URL in your browser.
+
+If you have `curl` installed, you can use it instead, but add the `-O` flag to download
+the contents to a local file and the `-L` flag to follow redirects, e.g.
+
+```sh
+curl -OL https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt
+```
