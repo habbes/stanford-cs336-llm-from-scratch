@@ -32,4 +32,4 @@ Use the environment's python interpreter in VS Code to get better intellisense s
 
 ![alt text](python-interpreter-status-bar.png)
 
-![alt text](select-python-interpreter-path)
+![alt text](select-python-interpreter-path.png)
