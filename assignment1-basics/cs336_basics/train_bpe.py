@@ -29,5 +29,4 @@ def train_bpe(
         corpus = f.read()
         (vocab, merges) = naive_bpe(corpus, vocab_size, special_tokens)
 
-        vocab_dict = {i: token for i, token in enumerate(vocab)}
-        return vocab_dict, merges
+        return vocab, merges

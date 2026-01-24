@@ -10,7 +10,7 @@ import regex as re
 # See: https://github.com/openai/tiktoken/pull/234/files 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[list[bytes], dict[tuple[bytes], int]]:
+def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     Naive BPE implementation.
     
@@ -45,7 +45,8 @@ def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoke
         merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=False)
     
     print("Complete segments merges", len(corpus_segments), " vocab length", len(vocab), "merges length:", len(merges));
-    return vocab, merges
+    vocab_dict = {i: token for i, token in enumerate(vocab)}
+    return vocab_dict, merges
 
 def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
     """
