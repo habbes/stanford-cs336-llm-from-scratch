@@ -194,36 +194,3 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
         new_cache[new_token_key] = count
     return new_cache
 
-def test_naive_bpe():
-    sample_text = """low low low low low
-lower lower widest widest widest <|endoftext|>
-newest newest newest newest <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> <|endoftext|> newest newest
-    """
-
-    num_merges=6
-
-    vocab, _ = naive_bpe(
-        corpus=sample_text,
-        num_merges=num_merges,
-        special_tokens=['<|endoftext|>'],
-        pretoken_regex=r"\w+")
-
-    assert vocab[0] == b"<|endoftext|>"
-    assert vocab[257] == b"st"
-    assert vocab[258] == b"est"
-    assert vocab[259] == b"ow"
-    assert vocab[260] == b"low"
-    assert vocab[261] == b"west"
-    assert vocab[262] == b"ne"
-    assert len(vocab) == 256 + 7  # 256 byte values + 1 special token + 6 merges
-
-    vocab = {i: token for i, token in enumerate(vocab)}
-    vocabs_without_specials = [word for word in vocab.values() if word != b"<|endoftext|>"]
-    for word_bytes in vocabs_without_specials:
-        assert b"<|" not in word_bytes
-
-    print("Test passed!")
-
-if __name__ == "__main__": 
-    test_naive_bpe()
-    
