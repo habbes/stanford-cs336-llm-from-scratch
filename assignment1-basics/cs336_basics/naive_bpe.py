@@ -32,8 +32,9 @@ def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoke
     num_merges = vocab_size - len(vocab)
 
     corpus_segments = split_on_special_tokens(corpus, special_tokens)
-    print("Number of corpus segments after splitting on special tokens:", len(corpus_segments))
+    # print("Number of corpus segments after splitting on special tokens:", len(corpus_segments))
 
+    pretokenized_cache = {}
     for i, segment in enumerate(corpus_segments):
         # print("Processing segment:", i + 1, "of", len(corpus_segments), "segment length:", len(segment))
         if not segment:
@@ -41,10 +42,11 @@ def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoke
             continue
         
         # print("Processing segment:", segment)
-        pretokenized_cache = pretokenize(segment, pretoken_regex)
-        merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=False)
+        pretokenized_cache = merge_pretokenized_counters_in_place(pretokenized_cache, pretokenize(segment, pretoken_regex))
     
-    print("Complete segments merges", len(corpus_segments), " vocab length", len(vocab), "merges length:", len(merges));
+    merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=False)
+    
+    # print("Complete segments merges", len(corpus_segments), " vocab length", len(vocab), "merges length:", len(merges));
     vocab_dict = {i: token for i, token in enumerate(vocab)}
     return vocab_dict, merges
 
@@ -108,6 +110,24 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
     # print("pretokenized cache size", len(cache))
     # print("pretokenized cache", cache)
     return cache
+
+def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pretokens2: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
+    """
+    Merges pre-tokens and their counts from the second argument, into the dictionary provided
+    by the first argument. Then it returns the updated dictionary. If a pre-token exists
+    in both dictionaries, their counts will be added up in the updated dictionary.
+
+    Args:
+        pretokens1 (dict[tuple[bytes], int]): The first pretokens cache. This dictionary will be updated in-place
+            by merging the items of the second cache into it.
+        pretokens2 (dict[tuple[bytes], int]): The second pretokens cache, whic will be merged into the first.
+    Returns:
+        (dict[tuple[bytes], int]): The updated pretokens cache. This is a reference to the mutated first argument.
+    """
+    for pretoken, count in pretokens2.items():
+        pretokens1[pretoken] = pretokens1.get(pretoken, 0) + count
+    
+    return pretokens1
 
 def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> tuple[list[bytes], dict[tuple[bytes], int]]:
     old_cache = pretokenized_cache

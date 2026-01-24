@@ -49,8 +49,10 @@ newest newest newest<|endoftext|> newest newest newest<|endoftext\>
         special_tokens=['<|endoftext|>'],
         pretoken_regex=r"\w+")
 
-    for i,v in vocab.items():
-        print(i, v)
+    # for i,v in vocab.items():
+    #     print(i, v)
+
+    assert len(vocab) == vocab_size
     assert vocab[0] == b"<|endoftext|>"
     assert vocab[257] == b"st"
     assert vocab[258] == b"est"
@@ -58,7 +60,7 @@ newest newest newest<|endoftext|> newest newest newest<|endoftext\>
     assert vocab[260] == b"low"
     assert vocab[261] == b"west"
     assert vocab[262] == b"ne"
-    assert len(vocab) == vocab_size
+    
     assert len(merges) == vocab_size - 256 - 1
     assert merges[0] == (b"s", b"t")
     assert merges[1] == (b"e", b"st")
