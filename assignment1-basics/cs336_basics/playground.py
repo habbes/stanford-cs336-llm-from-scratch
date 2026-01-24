@@ -24,6 +24,12 @@ newest newest newest newest newest newest
     assert vocab[262] == b"ne"
     assert len(vocab) == vocab_size
     assert len(merges) == vocab_size - 256 - 1
+    assert merges[0] == (b"s", b"t")
+    assert merges[1] == (b"e", b"st")
+    assert merges[2] == (b"o", b"w")
+    assert merges[3] == (b"l", b"ow")
+    assert merges[4] == (b"w", b"est")
+    assert merges[5] == (b"n", b"e")
 
     print("Test passed!")
 
