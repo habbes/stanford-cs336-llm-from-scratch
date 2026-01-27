@@ -24,6 +24,7 @@ I used this to keep track of my progress to remember where I left off, in case I
     Since now I know the basic bpe logic is correct. The focus should likely be on corpus splitting and handling logic.
 - Next steps
   - Profile performance (recommended tools: cProfile, scalene)
+    - Learn [cProfile](https://docs.python.org/3/library/profile.html) and use to find bottlenecks
   - Create more efficient version of `train_bpe` with multiprocessing
   - Bonus: experiment with speeding some parts using Rust
   - Bonus bonus: can create an optimized C# version?
