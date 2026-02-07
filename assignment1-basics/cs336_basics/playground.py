@@ -1,4 +1,4 @@
-from train_bpe_core import train_bpe_core
+from .train_bpe_core import train_bpe_core
 
 def test_train_bpe():
     print("SCENARIO: simple corpus with no special tokens")

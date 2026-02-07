@@ -21,7 +21,8 @@ I updated the [`train_bpe`](./train_bpe.py) to call the core implementation.
 I create the [`playground.py`](./playground.py) file for running sanity checks and debugging issues.
 
 ```bash
-uv run playground.py
+# cd to the parent of cs336_basics first (i.e. the assignment1-basics folder)
+uv run python -m cs336_basics.playground
 ```
 
 The implementation passed the correctness tests, but fails the performance test
@@ -49,3 +50,4 @@ not parallelizable in Python.
 
 > You should use profiling tools like `cProfile` or `scalene` to identify the bottlenecks in your imple-
 mentation, and focus on optimizing those.
+
