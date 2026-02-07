@@ -2,7 +2,7 @@ import cProfile
 import pstats
 from pstats import SortKey
 from datetime import datetime
-from os import path
+from os import path, makedirs
 from sys import argv
 
 from .train_bpe import train_bpe
@@ -11,7 +11,10 @@ from .train_bpe import train_bpe
 def measure_training(prefix: str, corpus: str, vocab_size: int, special_tokens: list[str]|None = None):
     special_tokens = ["<|endoftext|>"] if special_tokens is None else special_tokens
     command = f"train_bpe(\"{corpus}\", {vocab_size}, {special_tokens})"
-    output = path.join("cs336_basics", "profiler_results", f"{prefix}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
+    
+    output_dir = path.join("cs336_basics", "profiler_results")
+    makedirs(output_dir)
+    output = path.join(output_dir, f"{prefix}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
     print(f"Running profiler for command: {command}")
 
     started = datetime.now()
