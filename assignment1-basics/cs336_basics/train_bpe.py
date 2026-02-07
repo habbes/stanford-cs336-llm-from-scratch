@@ -1,4 +1,4 @@
-from .naive_bpe import naive_bpe
+from .train_bpe_core import train_bpe_core
 
 def train_bpe(
         input_path: str,
@@ -27,6 +27,6 @@ def train_bpe(
     # TODO: use a more efficient bpe implementation
     with open(input_path, 'r', encoding='utf-8') as f:
         corpus = f.read()
-        (vocab, merges) = naive_bpe(corpus, vocab_size, special_tokens)
+        (vocab, merges) = train_bpe_core(corpus, vocab_size, special_tokens)
 
         return vocab, merges

@@ -1,6 +1,6 @@
-from naive_bpe import naive_bpe
+from train_bpe_core import train_bpe_core
 
-def test_naive_bpe():
+def test_train_bpe():
     print("SCENARIO: simple corpus with no special tokens")
     sample_text = """low low low low low
 lower lower widest widest widest
@@ -9,7 +9,7 @@ newest newest newest newest newest newest
 
     vocab_size= 256 + 1 + 6 # 256 byte values, 1 special token, 6 tokens from BPE merges
 
-    vocab, merges = naive_bpe(
+    vocab, merges = train_bpe_core(
         corpus=sample_text,
         vocab_size=vocab_size,
         special_tokens=['<|endoftext|>'],
@@ -33,7 +33,7 @@ newest newest newest newest newest newest
 
     print("Test passed!")
 
-def test_naive_bpe_special_tokens():
+def test_train_bpe_special_tokens():
     print("SCENARIO: simple corpus with special token")
     sample_text = """low low low low low
 <|endoftext|>
@@ -43,7 +43,7 @@ newest newest newest<|endoftext|> newest newest newest<|endoftext\>
 
     vocab_size= 256 + 1 + 6 # 256 byte values, 1 special token, 6 tokens from BPE merges
 
-    vocab, merges = naive_bpe(
+    vocab, merges = train_bpe_core(
         corpus=sample_text,
         vocab_size=vocab_size,
         special_tokens=['<|endoftext|>'],
@@ -72,6 +72,6 @@ newest newest newest<|endoftext|> newest newest newest<|endoftext\>
     print("Test passed!")
 
 if __name__ == "__main__": 
-    test_naive_bpe()
-    test_naive_bpe_special_tokens()
+    test_train_bpe()
+    test_train_bpe_special_tokens()
     

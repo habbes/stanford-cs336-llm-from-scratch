@@ -10,7 +10,7 @@ import regex as re
 # See: https://github.com/openai/tiktoken/pull/234/files 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-def naive_bpe(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+def train_bpe_core(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     Naive BPE implementation.
     
