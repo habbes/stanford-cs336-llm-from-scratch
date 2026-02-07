@@ -13,7 +13,7 @@ def measure_training(prefix: str, corpus: str, vocab_size: int, special_tokens: 
     command = f"train_bpe(\"{corpus}\", {vocab_size}, {special_tokens})"
     
     output_dir = path.join("cs336_basics", "profiler_results")
-    makedirs(output_dir)
+    makedirs(output_dir, exist_ok=True)
     output = path.join(output_dir, f"{prefix}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
     print(f"Running profiler for command: {command}")
 
