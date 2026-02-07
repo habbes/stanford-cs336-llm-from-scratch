@@ -220,3 +220,42 @@ From this algorithm, we can spot some optimization opportunities:
 - `merge_token_pair` can update the token cache in place instead of creating a new one
 - `find_best_pair` can update the previous `pair_counts` instead of creating a new one. It just needs to update the entries that included the beginning or end of the merged pair.
 - Since we append to the `vocab` and `merges` lists in each iteration, and the number of iterations is based on vocab size, perhaps we could preallocate list capacity to avoid frequend `append` calls?
+- The while loop in `merge_token_pair` calls `len(token_key)` in each nested iteration. Perhaps this could explain the 0.415s spent on `len` (10% of the runtime)
+
+**Optimizing `merge_token_pair`: updating token cache in place**:
+
+Here are the results after updating token cache in place
+
+```
+Running profiler for command: train_bpe("tests/fixtures/corpus.en", 500, ['<|endoftext|>'])
+Sun Feb  8 02:29:51 2026    cs336_basics/profiler_results/corpus_en-2026-02-08_02-29-49
+
+         7178661 function calls (7178563 primitive calls) in 2.322 seconds
+
+   Ordered by: cumulative time
+   List reduced from 191 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    2.322    2.322 {built-in method builtins.exec}
+        1    0.000    0.000    2.322    2.322 <string>:1(<module>)
+        1    0.000    0.000    2.322    2.322 train_bpe.py:3(train_bpe)
+        1    0.000    0.000    2.321    2.321 train_bpe_core.py:13(train_bpe_core)
+        1    0.007    0.007    2.264    2.264 train_bpe_core.py:132(merge_pairs)
+      243    1.325    0.005    1.357    0.006 train_bpe_core.py:172(find_best_pair)
+      243    0.739    0.003    0.900    0.004 train_bpe_core.py:196(merge_token_pair)
+  6880891    0.191    0.000    0.191    0.000 {built-in method builtins.len}
+        1    0.037    0.037    0.056    0.056 train_bpe_core.py:87(pretokenize)
+   160785    0.013    0.000    0.013    0.000 train_bpe_core.py:105(<genexpr>)
+
+
+
+Finsihed profiling in 2.325115 seconds. Results saved to cs336_basics/profiler_results/corpus_en-2026-02-08_02-29-49
+```
+
+Runtime reduced by 43% to 2.322 seconds. Great speed up. Incidentally, all the `test_train_bpe` unit tests pass now, including the speed test
+
+```
+tests/test_train_bpe.py::test_train_bpe_speed PASSED
+tests/test_train_bpe.py::test_train_bpe PASSED
+tests/test_train_bpe.py::test_train_bpe_special_tokens PASSED
+```

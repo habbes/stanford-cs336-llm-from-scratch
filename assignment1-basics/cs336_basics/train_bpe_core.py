@@ -194,24 +194,58 @@ def find_best_pair(token_cache: dict[tuple[bytes], int]) -> tuple[tuple[bytes, b
     return best_pair, best_count
 
 def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
-    new_cache = {}
+    # We want to replace entries in the token cache that contain the pair with the merged pair
+    # e.g. say we have the following entries
+    # {
+    # (l, o ,w): 5
+    # (l, o, w, e, r): 2
+    # (w, i, d, e, s, t): 3
+    # (n, e, w, e, s, t): 6
+    # }
+    # and pair = (s, t)
+    # then the result will be
+    # {
+    # (l, o ,w): 5
+    # (l, o, w, e, r): 2
+    # (w, i, d, e, st): 3
+    # (n, e, w, e, st): 6
+    # }
+    
+    merged_pair = pair[0] + pair[1]
+    entries_to_replace: dict[tuple[bytes], int] = {}
     for token_key, count in token_cache.items():
-        temp_token_key = []
+        # check if the pair existing in this entry
         i = 0
+        while i < len(token_key) - 1:
+            if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
+                entries_to_replace[token_key] = i
+                break
+            i += 1
+    
+    
+    for token_key, index_to_replace in entries_to_replace.items():
+        count = token_cache[token_key]
+        del token_cache[token_key]
+
+        # Replace the target consecutive tokens by the single merged token object
+        temp_new_token = [t for t in token_key[:index_to_replace]]
+        temp_new_token.append(merged_pair)
+
+        # Check if there are more occurences to merge
+        i = index_to_replace + 2
         while i < len(token_key):
             if i == len(token_key) - 1:
-                temp_token_key.append(token_key[i])
+                temp_new_token.append(token_key[i])
                 i += 1
-                continue
-            if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
-                temp_token_key.append(pair[0] + pair[1])
+            elif token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
+                temp_new_token.append(pair[0] + pair[1])
                 i += 2
-                continue
-            
-            temp_token_key.append(token_key[i])
-            i += 1
-        
-        new_token_key = tuple(temp_token_key)
-        new_cache[new_token_key] = count
-    return new_cache
+            else:
+                temp_new_token.append(token_key[i])
+                i += 1
+
+        new_token_key = tuple(temp_new_token)
+        token_cache[new_token_key] = count
+
+    return token_cache
 
