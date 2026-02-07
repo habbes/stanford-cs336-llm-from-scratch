@@ -259,3 +259,39 @@ tests/test_train_bpe.py::test_train_bpe_speed PASSED
 tests/test_train_bpe.py::test_train_bpe PASSED
 tests/test_train_bpe.py::test_train_bpe_special_tokens PASSED
 ```
+
+But let continue with the optimization plans since they're all relatively straightforward. Before I move to the next item, let me see
+if I can make small adjustments to `merge_token_pair` before moving to the next function.
+
+Here's after making sure `len` is only called once per while loop (only in the `merge_token_pair` function), i.e. replace
+
+```python
+while i < len(token_key):
+```
+with
+
+```python
+token_len = len(token_key)
+while i < token_len:
+```
+
+```
+         2655859 function calls (2655761 primitive calls) in 1.998 seconds
+
+   Ordered by: cumulative time
+   List reduced from 191 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    1.998    1.998 {built-in method builtins.exec}
+        1    0.000    0.000    1.998    1.998 <string>:1(<module>)
+        1    0.000    0.000    1.998    1.998 train_bpe.py:3(train_bpe)
+        1    0.000    0.000    1.997    1.997 train_bpe_core.py:13(train_bpe_core)
+        1    0.007    0.007    1.939    1.939 train_bpe_core.py:132(merge_pairs)
+      243    1.325    0.005    1.358    0.006 train_bpe_core.py:172(find_best_pair)
+      243    0.536    0.002    0.573    0.002 train_bpe_core.py:196(merge_token_pair)
+  2358089    0.068    0.000    0.068    0.000 {built-in method builtins.len}
+        1    0.038    0.038    0.057    0.057 train_bpe_core.py:87(pretokenize)
+   160785    0.013    0.000    0.013    0.000 train_bpe_core.py:105(<genexpr>)
+```
+
+14% speedup (from 2.3s to 1.998). I'm genuinely surprise how much gain we can get from such a small mundane change.

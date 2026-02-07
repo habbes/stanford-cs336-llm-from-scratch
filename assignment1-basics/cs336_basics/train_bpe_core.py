@@ -216,7 +216,8 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
     for token_key, count in token_cache.items():
         # check if the pair existing in this entry
         i = 0
-        while i < len(token_key) - 1:
+        token_len = len(token_key)
+        while i < token_len - 1:
             if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
                 entries_to_replace[token_key] = i
                 break
@@ -233,8 +234,9 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
 
         # Check if there are more occurences to merge
         i = index_to_replace + 2
-        while i < len(token_key):
-            if i == len(token_key) - 1:
+        token_len = len(token_key)
+        while i < token_len:
+            if i == token_len - 1:
                 temp_new_token.append(token_key[i])
                 i += 1
             elif token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
