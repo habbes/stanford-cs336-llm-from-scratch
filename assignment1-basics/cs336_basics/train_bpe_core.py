@@ -379,7 +379,11 @@ def update_pair_counts_with_merged_pair(
     new_entry = (entry_to_update[0], merged_pair) if index_to_replace == 1 else (merged_pair, entry_to_update[1])
     pair_counts[new_entry] = pair_counts.get(new_entry, 0) + count
 
-    replaced_new_count = pair_counts.get(entry_to_update, 0) - count
+    # We expect entry_to_update to exist in pair_counts since
+    # the entry should have been retrieved from a subsequence of consecutive pairs in the
+    # pretokenized cache. And all such pairs should have entries in the pair_counts
+    # by definition. If that's not the case then there's a bug earlier in the code.
+    replaced_new_count = pair_counts[entry_to_update] - count
     assert replaced_new_count >= 0
     if replaced_new_count == 0:
         del pair_counts[entry_to_update]

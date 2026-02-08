@@ -411,3 +411,16 @@ Let's attempt to retrace the steps:
     - Then we'll add `(b'in', `b'in')` to `pair_counts`. This is what's supposed to happen, but not what our code does.
     - When merging the second occurrence, the code actually still looks up the old version of the pretoken without the previous merge `(b' ', b'r', b'a', b'i', b'n', b'i', b'n', b'g')`. And so, it will add `(b'n', b'in')` to the `pair_counts` instead.
     - This is definitely a bug, but we've now added the pair `(b'n', b'in')` which doesn't exist in the pretoken cache, so even if we try to merge it, we won't be able to.
+
+I've created a simple test to reproduce this issue in the `playground.py` using the sample text:
+
+```
+fining training raining
+paining training training
+gaining gaining
+```
+
+```bash
+uv run python -m cs336_basics.playground
+```
+

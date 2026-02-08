@@ -71,7 +71,76 @@ newest newest newest<|endoftext|> newest newest newest<|endoftext\>
 
     print("Test passed!")
 
+def test_train_bpe_repeating_pairs():
+    print("SCENARIO: simple corpus with repeated pairs")
+
+    sample_text ="""
+fining training raining
+paining training training
+gaining gaining
+"""
+
+    vocab_size = 256 + 1 + 2
+
+    vocab, merges = train_bpe_core(
+        corpus=sample_text,
+        vocab_size=vocab_size,
+        special_tokens=['<|endoftext|>'],
+        pretoken_regex=r"\w+")
+
+    # Initial pretokens
+    # - (f, i, n, i, n, g): 1
+    # - (p, a, i, n, i, n, g): 1
+    # - (t, r, a, i, n, i, n, g): 3
+    # - (r, a, in, i, n, g): 1
+    # - (g, a, i, n, i, n, g): 2
+    #
+    # pair_counts
+    # - (f, i): 1
+    # - (i, n): 16
+    # - (n, i): 8
+    # - (n, g): 8
+    # - (p, a): 1
+    # - (a, i): 7
+    # - (t, r): 3
+    # - (r, a): 4
+    # - (g, a): 2
+    #
+    # best pair: (i, n)
+    #
+    # merge 1
+    # - (f, in, in, g): 1
+    # - (p, a, in, in, g): 1
+    # - (t, r, a, in, in, g): 3
+    # - (r, a, in, in, g): 1
+    # - (g, a, in, in, g): 2
+    #
+    # pair_counts after merge 1
+    # - (f, in): 1
+    # - (in, in): 8
+    # - (in, g): 8
+    # - (p, a): 1
+    # - (a, in): 7
+    # - (t, r): 3
+    # - (r, a): 4
+    # - (g, a): 2
+    #
+    # best pair: (in, in) due to tie-breaker between (in, in) and (in, g): in > g
+
+    assert len(vocab) == vocab_size
+    assert vocab[0] == b"<|endoftext|>"
+    assert vocab[257] == b"in"
+    assert vocab[258] == b"inin"
+
+    assert len(merges) == 2
+    merges[0] =(b'i', b'n')
+    merges[1] == (b'in', b'in')
+
+    print("Test passed!")
+    
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
+    test_train_bpe_repeating_pairs()
     
