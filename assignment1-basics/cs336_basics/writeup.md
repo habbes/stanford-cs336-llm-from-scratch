@@ -295,3 +295,10 @@ while i < token_len:
 ```
 
 14% speedup (from 2.3s to 1.998). I'm genuinely surprise how much gain we can get from such a small mundane change.
+
+The new `merge_token_pair` runs one loop to collect entries to replace, and another loop to create replacement tokens,
+add them to the cache and remove the old tokens. I can't replace the tokens in the same loop because I can't modify the
+dictonary while iterating on it. I did try to compute the replacement tokens in the first loop such that the second
+loop just does the replacement of already computed tokens, but that turned out to be slower than the current implementation
+by around 150ms. I suspect that this is due to the fact that creating the replacement token in the first loop made
+the loop more complex with more if statements, which adds overhead even to those entries that do not need to be replaced.
