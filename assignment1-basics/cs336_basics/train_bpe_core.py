@@ -129,12 +129,11 @@ def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pr
     
     return pretokens1
 
-def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> tuple[list[bytes], dict[tuple[bytes], int]]:
-    old_cache = pretokenized_cache
+def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> None:
     for merge_step in range(num_merges):
         if debug:
             print("Running merge iteration", merge_step, "target num merges:", num_merges)
-        best_pair, best_count = find_best_pair(old_cache)
+        best_pair, best_count = find_best_pair(pretokenized_cache)
 
         if debug:
             print("Best pair found:", best_pair, "with count:", best_count)
@@ -143,7 +142,7 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
         if best_pair is None:
             if debug:
                 print("No more pairs to merge, stopping early.")
-            return old_cache # Or return from method?
+            return
         
         vocab.append(b"".join(best_pair))
 
@@ -151,9 +150,10 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
             print("Adding new token to vocab:", vocab[-1], "at index", len(vocab) - 1)
 
         # merge the best pair in the pretokenized cache
-        new_cache = merge_token_pair(best_pair, old_cache)
+        # the pretokenized cache is updated with the merged pair
+        merge_token_pair(best_pair, pretokenized_cache)
         if debug:
-            print("New cache size after merge", merge_step, ":", len(new_cache))
+            print("New cache size after merge", merge_step, ":", len(pretokenized_cache))
 
         # Keep track of the merges that occurred since
         # since it's required by the assignment.
@@ -161,12 +161,6 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
 
         if debug:
             print("Merged pair:", best_pair, "into token:", vocab[-1])
-
-        # print("New cache size after merge", merge_step, ":", len(new_cache))
-        # print("New cache after merge", merge_step, ":", new_cache)
-        old_cache = new_cache
-
-    return old_cache
 
 
 def find_best_pair(token_cache: dict[tuple[bytes], int]) -> tuple[tuple[bytes, bytes], int]:
