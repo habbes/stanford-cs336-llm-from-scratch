@@ -389,4 +389,25 @@ if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
 ```
 
 Perhaps there's a bug in this logic that causes it incorrectly create a `pair_to_update` that doesn't
-match an existing sequence?
+match an existing sequence? Or maybe we removed that pair from the cache prematurely? Or maybe the
+code that builds the pair count is buggy and does not add all valid pairs to the table? But if
+the latter were the case, wouldn't it cause tests to fail? Well it's possible for tests to pass
+if vocab size is small such that we stop iterating before we reach the step that would have
+attempted to merge the missing pair.
+
+I've debugged the failing test and found the pair missing from the `pair_counts` to be `(b'in', b'in')`.
+The merge step is trying to merge the pair `(b'in', b'g')`, the former pair overlaps with the latter
+in words like "def-in-in-g", "conta-in-in-g", etc. which is pretty common pattern in English. Also,
+from debugging, it appears that the pair `b('in', 'in')` is  never added to the `pair_counts` dictionary.
+But this subsequence `(b'in', b'in')` does exist in the token cache in entries like `(b' ', b'r', b'a', b'in', b'in', b'g')`.
+
+Let's attempt to retrace the steps:
+- The subsequence `(b'i', b'n')` gets merged to `b'in'` (confirmed from logs).
+- Then the token cache needs to be updated such that `(b'i', b'n')` are replaced with `b'in'`.
+- So `(b' ', b'r', b'a', b'i', b'n', b'i', b'n', b'g')` gets updated to `(b' ', b'r', b'a', b'in', b'in', b'g')`
+    - In the first step we merge the first occurrence of `b'i',b'n'`: `(b' ', b'r', b'a', b'i', b'n', b'i', b'n', b'g')` gets updated to `(b' ', b'r', b'a', b'in', b'i', b'n', b'g')`
+    - Then in `pair_counts` we add or update the pair `(b'a', b'in')` in `pair_counts`
+    - Then we merge the second occurrence of `b'i',b'n'`, we have to update the updated `(b' ', b'r', b'a', b'in', b'i', b'n', b'g')` to `(b' ', b'r', b'a', b'in', b'in', b'g')`
+    - Then we'll add `(b'in', `b'in')` to `pair_counts`. This is what's supposed to happen, but not what our code does.
+    - When merging the second occurrence, the code actually still looks up the old version of the pretoken without the previous merge `(b' ', b'r', b'a', b'i', b'n', b'i', b'n', b'g')`. And so, it will add `(b'n', b'in')` to the `pair_counts` instead.
+    - This is definitely a bug, but we've now added the pair `(b'n', b'in')` which doesn't exist in the pretoken cache, so even if we try to merge it, we won't be able to.
