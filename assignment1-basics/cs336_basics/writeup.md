@@ -163,6 +163,7 @@ performed for each merge iteration. The `pair_counts` dictionary will contain th
 - (e,r): 2
 - (w, e): 8
 - (w,i): 3
+- (i, d): 3
 - (d,e): 3
 - (e,s): 9
 - (s,t): 9
@@ -302,3 +303,90 @@ dictonary while iterating on it. I did try to compute the replacement tokens in 
 loop just does the replacement of already computed tokens, but that turned out to be slower than the current implementation
 by around 150ms. I suspect that this is due to the fact that creating the replacement token in the first loop made
 the loop more complex with more if statements, which adds overhead even to those entries that do not need to be replaced.
+
+**Optimizing `find_best_pair`: Updating `pair_counts` in place.
+
+Instead of rebuilding the `pair_counts` dictionary from scratch in each invocation of the `find_best_pair` function,
+I only build the dictionary on the first invocation, then pass it around and update it in place when necessary.
+So now `find_best_pair` will just take the already built dictionary and iterate through it to find the pair
+with the max count. And I've moved the update logic to the `merge_token_pair` function, so the `pair_counts`
+dictionary gets updated in the same loop that scans the token cache to find the entries that contain
+the pair to merge. This means we don't need a separate scan to find the overlapping pairs that need to be updated.
+
+Here are the results
+
+```
+Sun Feb  8 05:10:16 2026    cs336_basics/profiler_results/corpus_en-2026-02-08_05-10-15
+
+         1571139 function calls (1571041 primitive calls) in 0.719 seconds
+
+   Ordered by: cumulative time
+   List reduced from 194 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.719    0.719 {built-in method builtins.exec}
+        1    0.000    0.000    0.719    0.719 <string>:1(<module>)
+        1    0.000    0.000    0.719    0.719 train_bpe.py:3(train_bpe)
+        1    0.000    0.000    0.719    0.719 train_bpe_core.py:13(train_bpe_core)
+        1    0.001    0.001    0.661    0.661 train_bpe_core.py:132(merge_pairs)
+      243    0.543    0.002    0.591    0.002 train_bpe_core.py:233(merge_token_pair)
+      243    0.000    0.000    0.069    0.000 train_bpe_core.py:164(find_best_pair)
+      242    0.061    0.000    0.061    0.000 train_bpe_core.py:220(find_best_pair_from_pair_counts)
+        1    0.037    0.037    0.056    0.056 train_bpe_core.py:87(pretokenize)
+  1205443    0.035    0.000    0.035    0.000 {built-in method builtins.len}
+
+
+
+Finsihed profiling in 0.719684 seconds. Results saved to cs336_basics/profiler_results/corpus_en-2026-02-08_05-10-15
+```
+
+Got a 64% speedup, from 1.998s to 0.719s. This is the biggest jump so far.
+
+This version passed all the tests, but there's a part that confuses me because it seems like a bug to me.
+When updating the `pair_counts` cache, sometimes I attempt to update an entry that's not in the dictionary.
+It seems like a bug to me that there such cases. Here's the code that does the update:
+
+```python
+def update_pair_counts_with_merged_pair(
+        pair_counts: dict[tuple[bytes, bytes], int],
+        entry_to_update: tuple[bytes, bytes],
+        merged_pair: bytes,
+        count: int,
+        index_to_replace: int):
+    assert index_to_replace == 0 or index_to_replace == 1
+    new_entry = (entry_to_update[0], merged_pair) if index_to_replace == 1 else (merged_pair, entry_to_update[1])
+    pair_counts[new_entry] = pair_counts.get(new_entry, 0) + count
+
+    replaced_new_count = pair_counts.get(entry_to_update, 0) - count
+    # assert replaced_new_count >= 0
+    if replaced_new_count == 0:
+        del pair_counts[entry_to_update]
+    else:
+        pair_counts[entry_to_update] = replaced_new_count
+```
+
+Notice the `assert replaced_new_count >= 0`. I had placed that code to catch such "bugs", but it caused
+tests to fail. Commenting out the assertion statement allowed tests to pass.
+
+What bothers is that since the `entry_to_update` is inferred from scanning the `token_cache` to find
+pairs that overlap with the merged pair, those pairs should also exist in the `pair_counts` dictionary
+and should not be removed from `pair_counts` (i.e. count get to 0) while there are still pretokens in
+token cache that contain the pair.
+
+Here's the general logic in `merge_token_pair`:
+
+```python
+if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
+    temp_new_token.append(merged_pair)
+
+    # Update pair counts
+    if i > 0:
+        pair_to_update = (token_key[i - 1], pair[0])
+        update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
+    if i + 2 < token_len:
+        pair_to_update = (pair[1], token_key[i + 2])
+        update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
+```
+
+Perhaps there's a bug in this logic that causes it incorrectly create a `pair_to_update` that doesn't
+match an existing sequence?

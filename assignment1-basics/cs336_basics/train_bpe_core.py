@@ -130,13 +130,11 @@ def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pr
     return pretokens1
 
 def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> None:
+    pair_counts = None
     for merge_step in range(num_merges):
         if debug:
             print("Running merge iteration", merge_step, "target num merges:", num_merges)
-        best_pair, best_count = find_best_pair(pretokenized_cache)
-
-        if debug:
-            print("Best pair found:", best_pair, "with count:", best_count)
+        best_pair, pair_counts = find_best_pair(pretokenized_cache, pair_counts)
             
         # print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
         if best_pair is None:
@@ -151,7 +149,7 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
 
         # merge the best pair in the pretokenized cache
         # the pretokenized cache is updated with the merged pair
-        merge_token_pair(best_pair, pretokenized_cache)
+        merge_token_pair(best_pair, pretokenized_cache, pair_counts)
         if debug:
             print("New cache size after merge", merge_step, ":", len(pretokenized_cache))
 
@@ -163,7 +161,38 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
             print("Merged pair:", best_pair, "into token:", vocab[-1])
 
 
-def find_best_pair(token_cache: dict[tuple[bytes], int]) -> tuple[tuple[bytes, bytes], int]:
+def find_best_pair(token_cache: dict[tuple[bytes], int], pair_counts: dict[tuple[bytes, bytes], int]|None = None) -> tuple[tuple[bytes, bytes], dict[tuple[bytes, bytes], int]]:
+    # If pair_counts is provided, we want to update it instead of rebuilding from scratch for effiency.
+    # We expect pair_counts to be None on first invocation, then we'll build the table and it
+    # will be passed around and updated in-place after that
+    # let's say we have the following token_cache
+    # - (m, e, s, t): 3
+    # - (m, e, k, l): 5
+    # - (e, s, k, l): 4
+    # - (l, e, s): 1
+    # - (s, t, e, s): 2
+    #
+    # This produces a pair_counts with the following entries
+    #
+    # - (e, s): 10
+    # - (s, t): 5
+    # - (e, k): 5
+    # - (k, l): 9
+    # - (s, k): 4
+    # - (m, e): 8
+    # - (l, e): 1
+    # - (t, e): 2
+    
+    
+    best_pair = None
+    if pair_counts is None:
+        best_pair, pair_counts = find_best_pair_from_token_cache(token_cache)
+    else:
+        best_pair = find_best_pair_from_pair_counts(pair_counts)
+
+    return best_pair, pair_counts
+
+def find_best_pair_from_token_cache(token_cache: dict[tuple[bytes], int]) -> tuple[tuple[bytes, bytes], dict[tuple[bytes, bytes], int]]:
     pair_counts = {}
     best_pair: tuple[bytes, bytes] = None
     best_count: int = 0
@@ -176,18 +205,32 @@ def find_best_pair(token_cache: dict[tuple[bytes], int]) -> tuple[tuple[bytes, b
                 pair_counts[pair] += count
             
             if best_pair is None:
-                best_pair = pair
-                best_count = pair_counts[pair]
+                best_pair, best_count = pair, pair_counts[pair]
             elif pair_counts[pair] > best_count:
-                best_pair = pair
-                best_count = pair_counts[pair]
+                best_pair, best_count = pair, pair_counts[pair]
             elif pair_counts[pair] == best_count:
                 if pair > best_pair:
-                    best_pair = pair
-                    best_count = pair_counts[pair]
-    return best_pair, best_count
+                    best_pair, best_count = pair, pair_counts[pair]
+    
+    return best_pair, pair_counts
 
-def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
+def find_best_pair_from_pair_counts(pair_counts: dict[tuple[bytes, bytes], int]) -> tuple[bytes, bytes]:
+    best_count = 0
+    best_pair: tuple[bytes, bytes] = None
+    for pair, count in pair_counts.items():
+        if best_pair is None:
+            best_pair, best_count = pair, count
+        elif count > best_count:
+            best_pair, best_count = pair, count
+        elif count == best_count:
+            if pair > best_pair:
+                best_pair, best_count = pair, count
+    return best_pair
+
+def merge_token_pair(
+        pair: tuple[bytes, bytes],
+        token_cache: dict[tuple[bytes], int],
+        pair_counts: dict[tuple[bytes, bytes], int]) -> dict[tuple[bytes], int]:
     # We want to replace entries in the token cache that contain the pair with the merged pair
     # e.g. say we have the following entries
     # {
@@ -207,6 +250,10 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
     
     merged_pair = pair[0] + pair[1]
     entries_to_replace: dict[tuple[bytes], int] = {}
+
+    # Remove pair from pair counts since we're going to merge the pair into a single token
+    # and update other entries
+    del pair_counts[pair]
     for token_key, count in token_cache.items():
         # check if the pair existing in this entry
         i = 0
@@ -217,8 +264,8 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
                 break
             i += 1
     
-    
     for token_key, index_to_replace in entries_to_replace.items():
+        token_len = len(token_key)
         count = token_cache[token_key]
         del token_cache[token_key]
 
@@ -226,15 +273,63 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
         temp_new_token = [t for t in token_key[:index_to_replace]]
         temp_new_token.append(merged_pair)
 
-        # Check if there are more occurences to merge
+        # we also want to replace the pair_counts accordingly
+        # let's say we have the following token_cache
+        # - (m, e, s, t): 3
+        # - (m, e, k, l): 5
+        # - (e, s, k, l): 4
+        # - (l, e, s): 1
+        # - (s, t, e, s): 2
+        #
+        # This produces a pair_counts with the following entries
+        #
+        # - (e, s): 10
+        # - (s, t): 5
+        # - (e, k): 5
+        # - (k, l): 9
+        # - (s, k): 4
+        # - (m, e): 8
+        # - (l, e): 1
+        # - (t, e): 2
+        #
+        # the best/most frequent pair is (e, s)
+        # We'll remove the entry (e, s) from the pair counts then
+        # We have to update the pairs that overlap with the ones we want to merge
+        # e.g. we'll add a new entry (m, es) with count 3, and reduce (m, e)'s count to 5
+        # overall, the updated pair_counts will look like
+        # - (s, t): 2
+        # - (es, t): 3
+        # - (e, k): 5
+        # - (k, l): 9
+        # - (es, k): 4
+        # - (m, e): 5
+        # - (m, es): 3
+        # - (l, es): 1
+        # - (t, es): 2
+        if index_to_replace > 0:
+            pair_to_update = (token_key[index_to_replace - 1], pair[0])
+            update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
+        if index_to_replace + 2 < token_len:
+            pair_to_update = (pair[1], token_key[index_to_replace + 2])
+            update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
+
+        # Check if there are more occurences to merge, and copy remaining bytes
         i = index_to_replace + 2
-        token_len = len(token_key)
         while i < token_len:
             if i == token_len - 1:
                 temp_new_token.append(token_key[i])
                 i += 1
             elif token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
-                temp_new_token.append(pair[0] + pair[1])
+                temp_new_token.append(merged_pair)
+
+                # Update pair counts
+                if i > 0:
+                    pair_to_update = (token_key[i - 1], pair[0])
+                    update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
+                if i + 2 < token_len:
+                    pair_to_update = (pair[1], token_key[i + 2])
+                    update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
+                
                 i += 2
             else:
                 temp_new_token.append(token_key[i])
@@ -242,6 +337,21 @@ def merge_token_pair(pair: tuple[bytes, bytes], token_cache: dict[tuple[bytes], 
 
         new_token_key = tuple(temp_new_token)
         token_cache[new_token_key] = count
-
     return token_cache
 
+def update_pair_counts_with_merged_pair(
+        pair_counts: dict[tuple[bytes, bytes], int],
+        entry_to_update: tuple[bytes, bytes],
+        merged_pair: bytes,
+        count: int,
+        index_to_replace: int):
+    assert index_to_replace == 0 or index_to_replace == 1
+    new_entry = (entry_to_update[0], merged_pair) if index_to_replace == 1 else (merged_pair, entry_to_update[1])
+    pair_counts[new_entry] = pair_counts.get(new_entry, 0) + count
+
+    replaced_new_count = pair_counts.get(entry_to_update, 0) - count
+    # assert replaced_new_count >= 0
+    if replaced_new_count == 0:
+        del pair_counts[entry_to_update]
+    else:
+        pair_counts[entry_to_update] = replaced_new_count
