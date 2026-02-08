@@ -205,8 +205,6 @@ def find_best_pair_from_token_cache(token_cache: dict[tuple[bytes], int]) -> tup
             pair = (token_key[i], token_key[i + 1])
             if pair not in pair_counts:
                 pair_counts[pair] = count
-                if pair == (b'in', b'in') or pair == (b'i', b'n'):
-                    print(f"ADDED PAIR {pair} with count {count}")
             else:
                 pair_counts[pair] += count
             
@@ -218,8 +216,6 @@ def find_best_pair_from_token_cache(token_cache: dict[tuple[bytes], int]) -> tup
                 if pair > best_pair:
                     best_pair, best_count = pair, pair_counts[pair]
 
-            if best_pair == (b'i', b'n') or best_pair == (b'in', b'in'):
-                print(f"FIND {best_pair} with count", best_count)
     return best_pair, pair_counts
 
 def find_best_pair_from_pair_counts(pair_counts: dict[tuple[bytes, bytes], int]) -> tuple[bytes, bytes]:
@@ -314,34 +310,15 @@ def merge_token_pair(
         # - (m, es): 3
         # - (l, es): 1
         # - (t, es): 2
-        try:
-            if index_to_replace > 0:
-                pair_to_update = (token_key[index_to_replace - 1], pair[0])
-                update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
-                if pair_to_update == (b'in', b'in'):
-                    print("SUCCESSFULLY updated", pair_to_update)
-                    print("token_cache", token_cache)
-                    print("pair_counts", pair_counts)
-                    print("pretoken", token_key)
-                    print("pair_to_update", pair_to_update, count)
-                    print("pair to merge", pair)
-            if index_to_replace + 2 < token_len:
-                pair_to_update = (pair[1], token_key[index_to_replace + 2])
-                update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
-                if pair_to_update == (b'in', b'in'):
-                    print("SUCCESSFULLY updated", pair_to_update)
-                    print("token_cache", token_cache)
-                    print("pair_counts", pair_counts)
-                    print("pretoken", token_key)
-                    print("pair_to_update", pair_to_update, count)
-                    print("pair to merge", pair)
-        except AssertionError:
-            print("token_cache", token_cache)
-            print("pair_counts", pair_counts)
-            print("pretoken", token_key)
-            print("pair_to_update", pair_to_update, count)
-            print("pair to merge", pair)
-            raise
+
+        if index_to_replace > 0:
+            pair_to_update = (token_key[index_to_replace - 1], pair[0])
+            update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
+            
+                
+        if index_to_replace + 2 < token_len:
+            pair_to_update = (pair[1], token_key[index_to_replace + 2])
+            update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
 
         # Check if there are more occurences to merge, and copy remaining bytes
         i = index_to_replace + 2
