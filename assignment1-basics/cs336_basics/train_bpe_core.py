@@ -141,7 +141,7 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
             if debug:
                 print("No more pairs to merge, stopping early.")
             return
-        
+
         vocab.append(b"".join(best_pair))
 
         if debug:
@@ -255,9 +255,7 @@ def merge_token_pair(
     merged_pair = pair[0] + pair[1]
     entries_to_replace: dict[tuple[bytes], int] = {}
 
-    # Remove pair from pair counts since we're going to merge the pair into a single token
-    # and update other entries
-    del pair_counts[pair]
+   
     for token_key, count in token_cache.items():
         # check if the pair existing in this entry
         i = 0
@@ -268,6 +266,7 @@ def merge_token_pair(
                 break
             i += 1
     
+    # print("Entries to replace", entries_to_replace)
     for token_key, index_to_replace in entries_to_replace.items():
         token_len = len(token_key)
         count = token_cache[token_key]
@@ -312,9 +311,16 @@ def merge_token_pair(
         # - (t, es): 2
 
         if index_to_replace > 0:
-            pair_to_update = (token_key[index_to_replace - 1], pair[0])
+            # When the overlapping pair to update starts with a token preceding the new token in the pretoken sequence
+            # then we retrieve it from the updated pretoken (temp_new_token) rather than the original pretoken (token_key)
+            # since the preceding token might have been updated in the new pretoken sequence.
+            # This is usually the case when the pair to be merged appears multiple times in the sequence
+            # .e.g if we have the pretoken sequence (p, a, i, n, i, n, g) and we're merging (i, n)
+            # then we'll have temp_new_token = [p, a, in] at some point, waiting to add the second occurrence of (i, n)
+            # When adding the second occurrence, temp_new_token = [p, a, in, in] we want to make sure
+            # that pair_to_update = (in, in) based on the updated token sequence, and not (n, in) based on the original sequence.
+            pair_to_update = (temp_new_token[-2], pair[0])
             update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
-            
                 
         if index_to_replace + 2 < token_len:
             pair_to_update = (pair[1], token_key[index_to_replace + 2])
@@ -331,7 +337,7 @@ def merge_token_pair(
 
                 # Update pair counts
                 if i > 0:
-                    pair_to_update = (token_key[i - 1], pair[0])
+                    pair_to_update = (temp_new_token[-2], pair[0])
                     update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
                 if i + 2 < token_len:
                     pair_to_update = (pair[1], token_key[i + 2])
@@ -341,9 +347,14 @@ def merge_token_pair(
             else:
                 temp_new_token.append(token_key[i])
                 i += 1
-
+    
         new_token_key = tuple(temp_new_token)
         token_cache[new_token_key] = count
+    
+     
+    # Remove pair from pair counts since we've merged the pair into a single token
+    # and update other entries
+    del pair_counts[pair]
     return token_cache
 
 def update_pair_counts_with_merged_pair(

@@ -137,10 +137,79 @@ gaining gaining
     merges[1] == (b'in', b'in')
 
     print("Test passed!")
+
+def test_train_bpe_repeating_char():
+    print("SCENARIO: simple corpus with repeated character")
+
+    sample_text ="""
+ooo oo oooo
+ooo ooo oooo
+oo ooo
+"""
+
+    vocab_size = 256 + 1 + 3
+
+    vocab, merges = train_bpe_core(
+        corpus=sample_text,
+        vocab_size=vocab_size,
+        special_tokens=['<|endoftext|>'],
+        pretoken_regex=r"\w+")
     
+    # Initial pretokens
+    # - (o, o, o): 4 => the first o, o and the second o, o are considered 2 distinct pairs, so this has 8 o, o pairs
+    # - (o, o): 2
+    # - (o, o, o, o): 2
+    # 
+    # pair_counts
+    # - (o, o):  16
+    #
+    # best pair: (o, o)
+    #
+    # merge 1:
+    # - (oo, o): 4
+    # - (oo): 2
+    # - (oo, oo): 2
+    #
+    # pair_counts
+    # - (oo, o): 4
+    # - (oo, oo): 2
+    #
+    # best pair (oo, o)
+    #
+    # merge 2:
+    #
+    # - (ooo): 4
+    # - (oo): 2
+    # - (oo, oo): 2
+    #
+    # pair_counts
+    #
+    # - (oo, oo): 2
+    #
+    # best pair: (oo, oo)
+    #
+    # merge 3:
+    #
+    # - (ooo): 4
+    # - (oo): 2
+    # - (oooo): 2
+
+    assert len(vocab) == vocab_size
+    assert vocab[0] == b"<|endoftext|>"
+    assert vocab[257] == b"oo"
+    assert vocab[258] == b"ooo"
+    assert vocab[259] == b"oooo"
+
+    assert len(merges) == 3
+    assert merges[0] == (b'o', b'o')
+    assert merges[1] == (b'oo', b'o')
+    assert merges[2] == (b'oo', b'oo')
+
+    print("Test passed!")
 
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
     test_train_bpe_repeating_pairs()
-    
+    test_train_bpe_repeating_char()
+

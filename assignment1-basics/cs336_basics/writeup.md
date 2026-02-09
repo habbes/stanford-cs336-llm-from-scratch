@@ -420,6 +420,14 @@ paining training training
 gaining gaining
 ```
 
+and sample with the same repeating character
+
+```
+ooo oo oooo
+ooo ooo oooo
+oo ooo
+```
+
 ```bash
 uv run python -m cs336_basics.playground
 ```
