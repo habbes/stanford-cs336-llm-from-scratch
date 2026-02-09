@@ -130,11 +130,11 @@ def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pr
     return pretokens1
 
 def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> None:
-    pair_counts = None
+    pair_index: TokenPairIndex = None
     for merge_step in range(num_merges):
         if debug:
             print("Running merge iteration", merge_step, "target num merges:", num_merges)
-        best_pair, pair_counts = find_best_pair(pretokenized_cache, pair_counts)
+        best_pair, pair_index = find_best_pair(pretokenized_cache, pair_index)
             
         # print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
         if best_pair is None:
@@ -149,7 +149,7 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
 
         # merge the best pair in the pretokenized cache
         # the pretokenized cache is updated with the merged pair
-        merge_token_pair(best_pair, pretokenized_cache, pair_counts)
+        merge_token_pair(best_pair, pretokenized_cache, pair_index)
         if debug:
             print("New cache size after merge", merge_step, ":", len(pretokenized_cache))
 
@@ -160,8 +160,7 @@ def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int],
         if debug:
             print("Merged pair:", best_pair, "into token:", vocab[-1])
 
-
-def find_best_pair(token_cache: dict[tuple[bytes], int], pair_counts: dict[tuple[bytes, bytes], int]|None = None) -> tuple[tuple[bytes, bytes], dict[tuple[bytes, bytes], int]]:
+def find_best_pair(token_cache: dict[tuple[bytes], int], pair_index: 'TokenPairIndex' = None) -> tuple[tuple[bytes, bytes], dict[tuple[bytes, bytes], int]]:
     # If pair_counts is provided, we want to update it instead of rebuilding from scratch for effiency.
     # We expect pair_counts to be None on first invocation, then we'll build the table and it
     # will be passed around and updated in-place after that
@@ -183,58 +182,16 @@ def find_best_pair(token_cache: dict[tuple[bytes], int], pair_counts: dict[tuple
     # - (l, e): 1
     # - (t, e): 2
     
-    
-    best_pair = None
-    if pair_counts is None:
-        best_pair, pair_counts = find_best_pair_from_token_cache(token_cache)
+    if pair_index is None:
+        pair_index = TokenPairIndex(token_cache)
+        return pair_index.get_cached_best_pair(), pair_index
     else:
-        best_pair = find_best_pair_from_pair_counts(pair_counts)
-
-    return best_pair, pair_counts
-
-def find_best_pair_from_token_cache(token_cache: dict[tuple[bytes], int]) -> tuple[tuple[bytes, bytes], dict[tuple[bytes, bytes], int]]:
-    """
-    Finds the most common pair of consecutive bytes in the token cache. It also builds
-    and returns a dictionary mapping pairs of byte sequences to their frequency
-    """
-    pair_counts = {}
-    best_pair: tuple[bytes, bytes] = None
-    best_count: int = 0
-    for token_key, count in token_cache.items():
-        for i in range(len(token_key) - 1):
-            pair = (token_key[i], token_key[i + 1])
-            if pair not in pair_counts:
-                pair_counts[pair] = count
-            else:
-                pair_counts[pair] += count
-            
-            if best_pair is None:
-                best_pair, best_count = pair, pair_counts[pair]
-            elif pair_counts[pair] > best_count:
-                best_pair, best_count = pair, pair_counts[pair]
-            elif pair_counts[pair] == best_count:
-                if pair > best_pair:
-                    best_pair, best_count = pair, pair_counts[pair]
-
-    return best_pair, pair_counts
-
-def find_best_pair_from_pair_counts(pair_counts: dict[tuple[bytes, bytes], int]) -> tuple[bytes, bytes]:
-    best_count = 0
-    best_pair: tuple[bytes, bytes] = None
-    for pair, count in pair_counts.items():
-        if best_pair is None:
-            best_pair, best_count = pair, count
-        elif count > best_count:
-            best_pair, best_count = pair, count
-        elif count == best_count:
-            if pair > best_pair:
-                best_pair, best_count = pair, count
-    return best_pair
+        return pair_index.compute_best_pair(), pair_index
 
 def merge_token_pair(
         pair: tuple[bytes, bytes],
         token_cache: dict[tuple[bytes], int],
-        pair_counts: dict[tuple[bytes, bytes], int]) -> dict[tuple[bytes], int]:
+        pair_index: 'TokenPairIndex') -> dict[tuple[bytes], int]:
     # We want to replace entries in the token cache that contain the pair with the merged pair
     # e.g. say we have the following entries
     # {
@@ -253,24 +210,24 @@ def merge_token_pair(
     # }
     
     merged_pair = pair[0] + pair[1]
-    entries_to_replace: dict[tuple[bytes], int] = {}
+    # entries_to_replace: dict[tuple[bytes], int] = {}
 
    
-    for token_key, count in token_cache.items():
-        # check if the pair existing in this entry
-        i = 0
-        token_len = len(token_key)
-        while i < token_len - 1:
-            if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
-                entries_to_replace[token_key] = i
-                break
-            i += 1
+    # for token_key, count in token_cache.items():
+    #     # check if the pair existing in this entry
+    #     i = 0
+    #     token_len = len(token_key)
+    #     while i < token_len - 1:
+    #         if token_key[i] == pair[0] and token_key[i + 1] == pair[1]:
+    #             entries_to_replace[token_key] = i
+    #             break
+    #         i += 1
     
-    # print("Entries to replace", entries_to_replace)
-    for token_key, index_to_replace in entries_to_replace.items():
+    for token_key, index_to_replace in pair_index.get_words_with_pair(pair): # todo, we should copy the dict so that we can modify
         token_len = len(token_key)
         count = token_cache[token_key]
         del token_cache[token_key]
+        pair_index.remove_word(token_key)
 
         # Replace the target consecutive tokens by the single merged token object
         temp_new_token = [t for t in token_key[:index_to_replace]]
@@ -320,11 +277,11 @@ def merge_token_pair(
             # When adding the second occurrence, temp_new_token = [p, a, in, in] we want to make sure
             # that pair_to_update = (in, in) based on the updated token sequence, and not (n, in) based on the original sequence.
             pair_to_update = (temp_new_token[-2], pair[0])
-            update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
+            update_pair_counts_with_merged_pair(pair_index, pair_to_update, merged_pair, count, index_to_replace=1)
                 
         if index_to_replace + 2 < token_len:
             pair_to_update = (pair[1], token_key[index_to_replace + 2])
-            update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
+            update_pair_counts_with_merged_pair(pair_index, pair_to_update, merged_pair, count, index_to_replace=0)
 
         # Check if there are more occurences to merge, and copy remaining bytes
         i = index_to_replace + 2
@@ -338,10 +295,10 @@ def merge_token_pair(
                 # Update pair counts
                 if i > 0:
                     pair_to_update = (temp_new_token[-2], pair[0])
-                    update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=1)
+                    update_pair_counts_with_merged_pair(pair_index, pair_to_update, merged_pair, count, index_to_replace=1)
                 if i + 2 < token_len:
                     pair_to_update = (pair[1], token_key[i + 2])
-                    update_pair_counts_with_merged_pair(pair_counts, pair_to_update, merged_pair, count, index_to_replace=0)
+                    update_pair_counts_with_merged_pair(pair_index, pair_to_update, merged_pair, count, index_to_replace=0)
                 
                 i += 2
             else:
@@ -350,30 +307,173 @@ def merge_token_pair(
     
         new_token_key = tuple(temp_new_token)
         token_cache[new_token_key] = count
+        # need to add each pair of this new word
+        # note that this loops over the token again to extra all pairs, redundant work that could be optimize since the word
+        # has been fully scanned by now.
+        pair_index.add_word_with_pairs(new_token_key)
     
      
     # Remove pair from pair counts since we've merged the pair into a single token
     # and update other entries
-    del pair_counts[pair]
+    pair_index.remove_pair(pair)
     return token_cache
 
 def update_pair_counts_with_merged_pair(
-        pair_counts: dict[tuple[bytes, bytes], int],
+        pair_index: 'TokenPairIndex',
         entry_to_update: tuple[bytes, bytes],
         merged_pair: bytes,
         count: int,
         index_to_replace: int):
     assert index_to_replace == 0 or index_to_replace == 1
     new_entry = (entry_to_update[0], merged_pair) if index_to_replace == 1 else (merged_pair, entry_to_update[1])
-    pair_counts[new_entry] = pair_counts.get(new_entry, 0) + count
+    pair_index.increment_pair_count(new_entry, count)
 
     # We expect entry_to_update to exist in pair_counts since
     # the entry should have been retrieved from a subsequence of consecutive pairs in the
     # pretokenized cache. And all such pairs should have entries in the pair_counts
     # by definition. If that's not the case then there's a bug earlier in the code.
-    replaced_new_count = pair_counts[entry_to_update] - count
+    replaced_new_count = pair_index.get_pair_count(entry_to_update) - count
     assert replaced_new_count >= 0
     if replaced_new_count == 0:
-        del pair_counts[entry_to_update]
+        pair_index.remove_pair(entry_to_update)
     else:
-        pair_counts[entry_to_update] = replaced_new_count
+        pair_index.set_pair_count(entry_to_update, replaced_new_count)
+
+
+class TokenPairIndex:
+    index: dict[tuple[bytes, bytes], tuple[dict[tuple[bytes], int], int]]
+
+    def __init__(self, token_cache: dict[tuple[bytes], int]):
+        self.pair_counts: dict[tuple[bytes, bytes], int] = {}
+        self.pair_to_words: dict[tuple[bytes, bytes], dict[tuple[bytes], int]] = {}
+        self.word_to_pairs: dict[tuple[bytes], set[tuple[bytes, bytes]]] = {}
+        self.token_cache = token_cache
+        self.best_pair: tuple[bytes, bytes] = None
+        self._build_index();
+    
+    def get_pair_counts(self):
+        return self.pair_counts
+    
+    def get_cached_best_pair(self):
+        return self.best_pair
+    
+    def compute_best_pair(self):
+        best_count = 0
+        best_pair: tuple[bytes, bytes] = None
+        for pair, count in self.pair_counts.items():
+            if best_pair is None:
+                best_pair, best_count = pair, count
+            elif count > best_count:
+                best_pair, best_count = pair, count
+            elif count == best_count:
+                if pair > best_pair:
+                    best_pair, best_count = pair, count
+        
+        self.best_pair = best_pair
+        return self.best_pair
+    
+    def get_pair_count(self, pair: tuple[bytes, bytes]):
+        return self.pair_counts.get(pair, 0)
+
+    def increment_pair_count(self, pair: tuple[bytes, bytes], delta: int):
+        current_count = self.pair_counts.get(pair, 0)
+        self.pair_counts[pair] = current_count + delta
+    
+    def set_pair_count(self, pair: tuple[bytes, bytes], count: int):
+        self.pair_counts[pair] = count
+    
+    def remove_pair(self, pair: tuple[bytes, bytes]):
+        del self.pair_counts[pair]
+        words_with_pair = self.pair_to_words.get(pair)
+        
+        if words_with_pair is not None:
+            # create list to avoid modifying dict during iteration
+            words_to_remove = list(words_with_pair)
+            for word in words_to_remove:
+                self.remove_word_link(pair, word)
+            del self.pair_to_words[pair]
+    
+    def remove_word(self, word: tuple[bytes]):
+        pairs_in_word = self.word_to_pairs.get(word)
+        if pairs_in_word is None:
+            return
+        
+        to_remove = list(pairs_in_word)
+        for pair in to_remove:
+            self.remove_word_link(pair, word)
+        
+        del self.word_to_pairs[word]
+    
+    def remove_word_link(self, pair: tuple[bytes, bytes], word: tuple[bytes]):
+        words_with_pair = self.pair_to_words.get(pair, None)
+        if words_with_pair is not None:
+            del words_with_pair[word]
+        
+        pairs_in_word = self.word_to_pairs.get(word, None)
+        if pairs_in_word is not None:
+            pairs_in_word.discard(pair)
+    
+    def add_word_link(self, pair: tuple[bytes, bytes], word: tuple[bytes], first_index: int):
+        words_with_pair = self.pair_to_words.get(pair)
+        if not words_with_pair:
+            self.pair_to_words[pair] = { word: first_index }
+        else:
+            words_with_pair[word] = first_index
+        
+        pairs_in_word = self.word_to_pairs.get(word)
+        if not pairs_in_word:
+            self.word_to_pairs[word] = set([pair])
+        else:
+            pairs_in_word.add(pair)
+    
+    def get_first_index_of_pair_in_word(self, pair: tuple[bytes, bytes], word: tuple[bytes]):
+        words_with_pair = self.pair_to_words.get(pair)
+        if words_with_pair is None:
+            return -1
+        
+        return words_with_pair.get(word, -1)
+    
+    def word_contains_pair(self, word: tuple[bytes], pair: tuple[bytes, bytes]):
+        pairs_in_word = self.word_to_pairs.get(word, None)
+        if pairs_in_word is None:
+            return False
+
+        return pair in pairs_in_word
+    
+    def get_words_with_pair(self, pair: tuple[bytes, bytes]):
+        words_with_pair = self.pair_to_words.get(pair)
+        if words_with_pair is None:
+            return []
+        
+        return list(words_with_pair.items())
+    
+    def add_word_with_pairs(self, word: tuple[bytes]):
+        for i in range(len(word) - 1):
+            pair = (word[i], word[i + 1])
+            if not self.word_contains_pair(word, pair):
+                self.add_word_link(pair, word, i) 
+    
+    def _build_index(self):
+        pair_counts = self.pair_counts
+        best_pair: tuple[bytes, bytes] = None
+        best_count: int = 0
+        for token_key, count in self.token_cache.items():
+            for i in range(len(token_key) - 1):
+                pair = (token_key[i], token_key[i + 1])
+                if pair not in pair_counts:
+                    pair_counts[pair] = count
+                else:
+                    pair_counts[pair] += count
+                
+                if not self.word_contains_pair(token_key, pair):
+                    self.add_word_link(pair, token_key, i)
+                
+                if best_pair is None:
+                    best_pair, best_count = pair, pair_counts[pair]
+                elif pair_counts[pair] > best_count:
+                    best_pair, best_count = pair, pair_counts[pair]
+                elif pair_counts[pair] == best_count:
+                    if pair > best_pair:
+                        best_pair, best_count = pair, pair_counts[pair]
+        
+        self.best_pair = best_pair

@@ -474,3 +474,95 @@ and m the average pretoken size. This will not scale well with larger data sets 
 Instead of scanning all pretokens, I can keep an inverted index hat maps byte pairs to pretoken entries that contain that pair.
 Since I already compute the pair_counts dictionary, the work is half done. I could repurpose this such that instead of mapping to frequencies, it
 counts to a structure that contains the set of mapped pretokens. This will increase memory use, but it should avoid costly loops.
+
+**Optimization: build index of byte pairs to words to avoid repeated loops**
+
+I implemented the optimization I suggested in the previous step, I created a dictionary that maps byte pair sequences (`(bytes, bytes)` pairs)
+to the pretoken sequences that contain those pairs. So when a pairs needs to be merged, we just do an O(1) lookup to find the words/pretokens
+that need to be updated. When the word is updated, we also need to update pair counts and tally the pairs in this new word. To make this fast,
+I also created a dictionary that maps words/pretokens to the set of pairs in that word (I need to confirm whether maintain this set is actually cheaper
+than re-computing the list of pairs in the word given that I often iterate through the set anyway). I encapsulate all this in a class called
+`TokenPairIndex` to contain the complexity, but it's not as clean as it ought to be. There is also still room for optimizing the code changes
+I've made, but I want to see whether the overall change has significant improvements before I try to optimize it further:
+
+```
+uv run python -m cs336_basics.perf_tests corpus_en
+Running profiler for command: train_bpe("tests/fixtures/corpus.en", 500, ['<|endoftext|>'])
+Mon Feb  9 21:12:44 2026    cs336_basics/profiler_results/corpus_en-2026-02-09_21-12-43
+
+         1523484 function calls (1523386 primitive calls) in 0.389 seconds
+
+   Ordered by: cumulative time
+   List reduced from 206 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.389    0.389 {built-in method builtins.exec}
+        1    0.000    0.000    0.389    0.389 <string>:1(<module>)
+        1    0.000    0.000    0.389    0.389 train_bpe.py:3(train_bpe)
+        1    0.001    0.001    0.389    0.389 train_bpe_core.py:13(train_bpe_core)
+        1    0.000    0.000    0.330    0.330 train_bpe_core.py:132(merge_pairs)
+      243    0.032    0.000    0.228    0.001 train_bpe_core.py:191(merge_token_pair)
+      243    0.000    0.000    0.102    0.000 train_bpe_core.py:163(find_best_pair)
+    15404    0.027    0.000    0.092    0.000 train_bpe_core.py:450(add_word_with_pairs)
+    15404    0.019    0.000    0.072    0.000 train_bpe_core.py:396(remove_word)
+   105587    0.046    0.000    0.064    0.000 train_bpe_core.py:416(add_word_link)
+
+
+
+Finsihed profiling in 0.389956 seconds. Results saved to cs336_basics/profiler_results/corpus_en-2026-02-09_21-12-43
+```
+
+Okay, an impressive 45% speedup (from 0.715s to 0.389s).
+
+Given that the implementation is still sloppy, I'm confident I can do better than this, maybe halve it at least.
+But first, I want to sort the results by total time to see how much is spent in each hot function without accounting
+for child calls.
+
+```python
+import pstats
+from pstats import SortKey
+
+path = "cs336_basics/profiler_results/corpus_en-2026-02-09_21-12-43"
+results = pstats.Stats(path)
+
+results.strip_dirs().sort_stats(SortKey.TIME).print_stats(20)
+```
+
+```
+Mon Feb  9 21:12:44 2026    cs336_basics/profiler_results/corpus_en-2026-02-09_21-12-43
+
+         1523484 function calls (1523386 primitive calls) in 0.389 seconds
+
+   Ordered by: internal time
+   List reduced from 206 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+      242    0.061    0.000    0.061    0.000 train_bpe_core.py:360(compute_best_pair)
+   105587    0.046    0.000    0.064    0.000 train_bpe_core.py:416(add_word_link)
+        1    0.037    0.037    0.056    0.056 train_bpe_core.py:87(pretokenize)
+    91137    0.036    0.000    0.051    0.000 train_bpe_core.py:407(remove_word_link)
+   566166    0.036    0.000    0.036    0.000 {method 'get' of 'dict' objects}
+      243    0.032    0.000    0.228    0.001 train_bpe_core.py:191(merge_token_pair)
+    15404    0.027    0.000    0.092    0.000 train_bpe_core.py:450(add_word_with_pairs)
+   105972    0.019    0.000    0.026    0.000 train_bpe_core.py:436(word_contains_pair)
+    15404    0.019    0.000    0.072    0.000 train_bpe_core.py:396(remove_word)
+        1    0.015    0.015    0.041    0.041 train_bpe_core.py:456(_build_index)
+   160785    0.013    0.000    0.013    0.000 train_bpe_core.py:105(<genexpr>)
+    22561    0.012    0.000    0.026    0.000 train_bpe_core.py:321(update_pair_counts_with_merged_pair)
+    85575    0.005    0.000    0.005    0.000 {method 'add' of 'set' objects}
+    22561    0.005    0.000    0.007    0.000 train_bpe_core.py:378(increment_pair_count)
+    91140    0.004    0.000    0.004    0.000 {method 'discard' of 'set' objects}
+    22561    0.003    0.000    0.005    0.000 train_bpe_core.py:375(get_pair_count)
+    56382    0.003    0.000    0.003    0.000 {method 'append' of 'list' objects}
+    63438    0.002    0.000    0.002    0.000 {built-in method builtins.len}
+    21643    0.002    0.000    0.002    0.000 train_bpe_core.py:382(set_pair_count)
+    27758    0.002    0.000    0.002    0.000 {method 'group' of '_regex.Match' objects}
+```
+
+There are a lot of small functions that individually don't take too much time, but it adds up. `compute_best_pair` is
+the top culprit. This loops over each pair to find the one with the highest count. Perhaps I could use max heap
+to keep track of the most frequent pairs, but I'll need to add more complexity to update the heap when
+pair counts change. I can also consolidate dictionaries with the same key into one dictionary in the
+`TokenPairIndex` class. I could also experiment with removing the word to pair index and just compute the pairs
+on demand. But before jumping into more micro-optimizations, maybe I should run the tokenizer on a larger
+corpus to see which functions scale poorly.
