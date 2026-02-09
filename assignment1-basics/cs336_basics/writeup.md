@@ -342,6 +342,8 @@ Finsihed profiling in 0.719684 seconds. Results saved to cs336_basics/profiler_r
 
 Got a 64% speedup, from 1.998s to 0.719s. This is the biggest jump so far.
 
+**Investigaging bug**
+
 This version passed all the tests, but there's a part that confuses me because it seems like a bug to me.
 When updating the `pair_counts` cache, sometimes I attempt to update an entry that's not in the dictionary.
 It seems like a bug to me that there such cases. Here's the code that does the update:
@@ -432,3 +434,43 @@ oo ooo
 uv run python -m cs336_basics.playground
 ```
 
+**Running profiler after fixing bug**
+
+I've fixed the bug, all tests pass and I've restored the assertions I had removed. Now let
+me run the profiler again to see if I still have the same performance:
+
+```
+uv run python -m cs336_basics.perf_tests corpus_en
+Running profiler for command: train_bpe("tests/fixtures/corpus.en", 500, ['<|endoftext|>'])
+Mon Feb  9 18:25:11 2026    cs336_basics/profiler_results/corpus_en-2026-02-09_18-25-10
+
+         1548578 function calls (1548480 primitive calls) in 0.715 seconds
+
+   Ordered by: cumulative time
+   List reduced from 194 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.715    0.715 {built-in method builtins.exec}
+        1    0.000    0.000    0.715    0.715 <string>:1(<module>)
+        1    0.000    0.000    0.715    0.715 train_bpe.py:3(train_bpe)
+        1    0.000    0.000    0.715    0.715 train_bpe_core.py:13(train_bpe_core)
+        1    0.001    0.001    0.656    0.656 train_bpe_core.py:132(merge_pairs)
+      243    0.540    0.002    0.587    0.002 train_bpe_core.py:234(merge_token_pair)
+      243    0.000    0.000    0.069    0.000 train_bpe_core.py:164(find_best_pair)
+      242    0.060    0.000    0.060    0.000 train_bpe_core.py:221(find_best_pair_from_pair_counts)
+        1    0.038    0.038    0.057    0.057 train_bpe_core.py:87(pretokenize)
+  1205443    0.035    0.000    0.035    0.000 {built-in method builtins.len}
+
+
+
+Finsihed profiling in 0.715595 seconds. Results saved to cs336_basics/profiler_results/corpus_en-2026-02-09_18-25-10
+```
+
+Great, no regression! I like the speedup so far. But I don't like that `merge_token_pair` takes 0.5s (75% of the runtime).
+I believe this is because it runs a nested loop in each merge iteration: it scans through each entry in the token
+cache to find which entries contain the pair to merge. This is an O(n*m) loop where n is the number of pretoken entries
+and m the average pretoken size. This will not scale well with larger data sets or larger vocab sizes (vocab size -> number of merge iterations).
+
+Instead of scanning all pretokens, I can keep an inverted index hat maps byte pairs to pretoken entries that contain that pair.
+Since I already compute the pair_counts dictionary, the work is half done. I could repurpose this such that instead of mapping to frequencies, it
+counts to a structure that contains the set of mapped pretokens. This will increase memory use, but it should avoid costly loops.
