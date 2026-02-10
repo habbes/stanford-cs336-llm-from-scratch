@@ -1,3 +1,8 @@
+import heapq
+from functools import total_ordering
+from collections import defaultdict
+import timeit
+import datetime
 from .train_bpe_core import train_bpe_core
 
 def test_train_bpe():
@@ -207,9 +212,61 @@ oo ooo
 
     print("Test passed!")
 
+def test_max_heap_token_pairs_ordering():
+    print("SCENARIO: max heap ordering for token pair counts")
+    # Since we're still running on Python 3.11
+    # We don't have access to max heap APIs of the heapq module which are available in 3.14+
+    # We can use min heap heap with negative counts to get the same behaviour
+    # I want a heap that returns the "best pair", i.e. the pair with the max count
+    # For pairs with the same count, we select the lexigrophically largest pair
+    # To get this order in the min heap, we ca use negative counts, and map
+    # each byte sequence to an object that reverses the sorting order
+
+    # See: https://docs.python.org/3/library/functools.html#functools.total_ordering
+    @total_ordering
+    class ReverseSort:
+        def __init__(self, value):
+            self.value = value
+
+        def __lt__(self, other):
+            return self.value > other.value
+
+        def __eq__(self, other):
+            return self.value == other.value
+    
+
+    pair_counts = {
+        (b'a', b'b'): 10,
+        (b'a', b'c'): 2,
+        (b'ab', b'cd'): 10,
+        (b'ab', b'ce'): 10,
+        (b'd', b'e'): 2,
+        (b'ab', b'c'): 1,
+        (b'a', b'bc'): 1
+    }
+
+    heap = [(-count, (ReverseSort(pair[0]), ReverseSort(pair[1])), pair) for pair, count in pair_counts.items()]
+    
+    sorted = []
+    while heap:
+        entry = heapq.heappop(heap)
+        sorted.append(entry[2])
+    
+    assert sorted[0] == (b'ab', b'ce')
+    assert sorted[1] == (b'ab', b'cd')
+    assert sorted[2] == (b'a', b'b')
+    assert sorted[3] == (b'd', b'e')
+    assert sorted[4] == (b'a', b'c')
+    assert sorted[5] == (b'ab', b'c')
+    assert sorted[6] == (b'a', b'bc')
+    [(10, (b'a', b'b')), (2, (b'a', b'c')), (10, (b'ab', b'cd')), (10, (b'ab', b'ce')), (2, (b'd', b'e')), (1, (b'ab', b'c')), (1, (b'a', b'bc'))]
+
+    print("Test passed!")
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
     test_train_bpe_repeating_pairs()
     test_train_bpe_repeating_char()
+    test_max_heap_token_pairs_ordering()
 
