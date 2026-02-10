@@ -566,3 +566,76 @@ pair counts change. I can also consolidate dictionaries with the same key into o
 `TokenPairIndex` class. I could also experiment with removing the word to pair index and just compute the pairs
 on demand. But before jumping into more micro-optimizations, maybe I should run the tokenizer on a larger
 corpus to see which functions scale poorly.
+
+Let's profile `train_bpe` on the [TinyStories validation data set](../data/TinyStoriesV2-GPT4-train.txt) with
+a vocab size of 10,000.
+
+```
+uv run python -m cs336_basics.perf_tests tiny_stories_valid
+Running profiler for command: train_bpe("data/TinyStoriesV2-GPT4-valid.txt", 10000, ['<|endoftext|>'])
+Tue Feb 10 18:09:59 2026    cs336_basics/profiler_results/tiny_stories_validation-2026-02-10_18-09-40
+
+         51397283 function calls (51397185 primitive calls) in 19.186 seconds
+
+   Ordered by: cumulative time
+   List reduced from 206 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   19.186   19.186 {built-in method builtins.exec}
+        1    0.001    0.001   19.186   19.186 <string>:1(<module>)
+        1    0.002    0.002   19.185   19.185 train_bpe.py:3(train_bpe)
+        1    0.061    0.061   19.169   19.169 train_bpe_core.py:13(train_bpe_core)
+    27631    6.567    0.000    9.900    0.000 train_bpe_core.py:87(pretokenize)
+        1    0.009    0.009    8.565    8.565 train_bpe_core.py:132(merge_pairs)
+     9743    0.002    0.000    7.746    0.001 train_bpe_core.py:163(find_best_pair)
+     9742    7.628    0.001    7.629    0.001 train_bpe_core.py:360(compute_best_pair)
+ 27562412    2.256    0.000    2.256    0.000 train_bpe_core.py:105(<genexpr>)
+     9743    0.140    0.000    0.808    0.000 train_bpe_core.py:191(merge_token_pair)
+
+
+
+Finsihed profiling in 19.185427 seconds. Results saved to cs336_basics/profiler_results/tiny_stories_validation-2026-02-10_18-09-40
+```
+
+This has taken 19s. `compute_best_pair` still stands out as a top contributor. Let me sort
+the functions by total time to see if there are any other functions that stand out.
+
+```
+results.strip_dirs().sort_stats(SortKey.TIME).print_stats(20)
+Tue Feb 10 18:09:59 2026    cs336_basics/profiler_results/tiny_stories_validation-2026-02-10_18-09-40
+
+         51397283 function calls (51397185 primitive calls) in 19.186 seconds
+
+   Ordered by: internal time
+   List reduced from 206 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+     9742    7.628    0.001    7.629    0.001 train_bpe_core.py:360(compute_best_pair)
+    27631    6.567    0.000    9.900    0.000 train_bpe_core.py:87(pretokenize)
+ 27562412    2.256    0.000    2.256    0.000 train_bpe_core.py:105(<genexpr>)
+    27631    0.441    0.000    0.619    0.000 train_bpe_core.py:114(merge_pretokenized_counters_in_place)
+  5419001    0.345    0.000    0.345    0.000 {method 'group' of '_regex.Match' objects}
+  5419002    0.325    0.000    0.325    0.000 {method 'encode' of 'str' objects}
+  4296947    0.303    0.000    0.303    0.000 {method 'get' of 'dict' objects}
+  5569753    0.190    0.000    0.190    0.000 {built-in method builtins.len}
+     9743    0.140    0.000    0.808    0.000 train_bpe_core.py:191(merge_token_pair)
+   295961    0.131    0.000    0.181    0.000 train_bpe_core.py:416(add_word_link)
+   287269    0.124    0.000    0.174    0.000 train_bpe_core.py:407(remove_word_link)
+    68766    0.084    0.000    0.274    0.000 train_bpe_core.py:450(add_word_with_pairs)
+    68766    0.068    0.000    0.255    0.000 train_bpe_core.py:396(remove_word)
+        1    0.061    0.061   19.169   19.169 train_bpe_core.py:13(train_bpe_core)
+   296838    0.056    0.000    0.078    0.000 train_bpe_core.py:436(word_contains_pair)
+    83487    0.049    0.000    0.103    0.000 train_bpe_core.py:321(update_pair_counts_with_merged_pair)
+   166295    0.043    0.000    0.060    0.000 enum.py:1507(_get_value)
+    55423    0.043    0.000    0.127    0.000 enum.py:1525(__and__)
+        1    0.042    0.042    0.114    0.114 train_bpe_core.py:456(_build_index)
+    27632    0.041    0.000    0.196    0.000 regex.py:449(_compile)
+```
+
+85% of the time is spent in 3 functions:
+
+- `compute_best_pair`: likely because for each merge iteration, it has to loop through each pair to find the max
+- `pretokenize`: pretokenization does a regex match on each corpus segment. The segments are pretokenized sequentially, as they get merged. But they could be pretokenized independently in parallel then merged later into a single cache. I should also compile the regex in advance and reuse the compiled version.
+- `<genexpr>`: This likely the tuple comprehension in the following statement: `token_key = tuple(encoded_token[i:i+1] for i in range(len(encoded_token)))`. Not yet sure how to optimize this.
+
+I'll first start with `compute_best_pair`. I think it's worthwhile trying the max heap approach.

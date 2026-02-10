@@ -16,5 +16,25 @@ uv run python -m cs336_basics.playground
 - The `perf_tests.py` module contains profiler tests
 
 ```bash
-uv run python -m cs336_basics.perf_tests
+uv run python -m cs336_basics.perf_tests corpus_en
+```
+
+- Inspect the profiler results of a perf tests:
+
+Start a python interpreter:
+
+```bash
+uv run python
+```
+
+Use the [`pstats`](https://docs.python.org/3/library/profile.html#module-pstats) module to
+inspect the stats:
+
+```python
+import pstats
+from pstats import SortKey
+
+path = "cs336_basics/profiler_results/corpus_en-2026-02-09_21-12-43"
+results = pstats.Stats(path)
+results.strip_dirs().sort_stats(SortKey.TIME).print_stats(20)
 ```
