@@ -35,21 +35,16 @@ def train_bpe_core(corpus: str, vocab_size: int, special_tokens: list[bytes], pr
     num_merges = vocab_size - len(vocab)
 
     corpus_segments = split_on_special_tokens(corpus, special_tokens)
-    # print("Number of corpus segments after splitting on special tokens:", len(corpus_segments))
 
     pretokenized_cache = {}
     for i, segment in enumerate(corpus_segments):
-        # print("Processing segment:", i + 1, "of", len(corpus_segments), "segment length:", len(segment))
         if not segment:
-            print("Skipping empty segment")
             continue
         
-        # print("Processing segment:", segment)
         pretokenized_cache = merge_pretokenized_counters_in_place(pretokenized_cache, pretokenize(segment, pretoken_regex))
     
-    merge_pairs(vocab, pretokenized_cache, num_merges, merges, debug=False)
-    
-    # print("Complete segments merges", len(corpus_segments), " vocab length", len(vocab), "merges length:", len(merges));
+    merge_pairs(vocab, pretokenized_cache, num_merges, merges)
+
     vocab_dict = {i: token for i, token in enumerate(vocab)}
     return vocab_dict, merges
 
@@ -110,8 +105,6 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
             cache[token_key] = 0
         cache[token_key] += 1
     
-    # print("pretokenized cache size", len(cache))
-    # print("pretokenized cache", cache)
     return cache
 
 def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pretokens2: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
@@ -132,36 +125,23 @@ def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pr
     
     return pretokens1
 
-def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]], debug: bool = False) -> None:
+def merge_pairs(vocab: list[bytes], pretokenized_cache: dict[tuple[bytes], int], num_merges: int, merges: list[tuple[bytes, bytes]]) -> None:
     pair_index: TokenPairIndex = None
     for merge_step in range(num_merges):
-        if debug:
-            print("Running merge iteration", merge_step, "target num merges:", num_merges)
         best_pair, pair_index = find_best_pair(pretokenized_cache, pair_index)
-            
-        # print("Best pair of merge", merge_step, ":", best_pair, "with count", best_count)
+
         if best_pair is None:
-            if debug:
-                print("No more pairs to merge, stopping early.")
             return
 
         vocab.append(b"".join(best_pair))
 
-        if debug:
-            print("Adding new token to vocab:", vocab[-1], "at index", len(vocab) - 1)
-
         # merge the best pair in the pretokenized cache
         # the pretokenized cache is updated with the merged pair
         merge_token_pair(best_pair, pretokenized_cache, pair_index)
-        if debug:
-            print("New cache size after merge", merge_step, ":", len(pretokenized_cache))
 
         # Keep track of the merges that occurred since
         # since it's required by the assignment.
         merges.append(best_pair)
-
-        if debug:
-            print("Merged pair:", best_pair, "into token:", vocab[-1])
 
 def find_best_pair(token_cache: dict[tuple[bytes], int], pair_index: 'TokenPairIndex' = None) -> tuple[tuple[bytes, bytes], dict[tuple[bytes, bytes], int]]:
     # If pair_counts is provided, we want to update it instead of rebuilding from scratch for effiency.
