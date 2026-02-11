@@ -12,6 +12,7 @@ from collections import defaultdict
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
 # See: https://github.com/openai/tiktoken/pull/234/files 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+BYTE_TABLE = tuple(bytes([i]) for i in range(256))
 
 def train_bpe_core(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
@@ -100,11 +101,9 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
     for match in pretokens:
         token = match.group(0)
         encoded_token = token.encode("utf-8")
-        token_key = tuple(encoded_token[i:i+1] for i in range(len(encoded_token)))
-        if token_key not in cache:
-            cache[token_key] = 0
-        cache[token_key] += 1
-    
+        token_key = tuple(BYTE_TABLE[b] for b in encoded_token)
+        cache[token_key] = cache.get(token_key, 0) + 1
+
     return cache
 
 def merge_pretokenized_counters_in_place(pretokens1: dict[tuple[bytes], int], pretokens2: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:

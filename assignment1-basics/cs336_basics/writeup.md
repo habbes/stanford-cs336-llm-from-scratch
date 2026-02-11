@@ -691,3 +691,65 @@ Finsihed profiling in 12.593223 seconds. Results saved to cs336_basics/profiler_
 
 We get a 34% speedup (19.2 to 12.6 seconds). Not that flashy compared to some of the other speedups, but pretty good. `find_best_pair`
 hardly appears in the top 10 anymore.
+
+**Optimization: Use cached bytes table when building pretokenized token keys**
+
+I took a stab at optimizing the `<genexpr>` function which takes more than 2 seconds. That line
+corresponds to the following statement in the code:
+
+```python
+token_key = tuple(encoded_token[i:i+1] for i in range(len(encoded_token)))
+```
+
+ChatGPT suggested that it might be slow for the following reasons:
+
+- Python-level loop
+- Slicing creates a new bytes object every iteration
+- Generator expression overhead
+- range(len(...)) indexing instead of direct iteration
+
+You’re paying Python overhead per byte.
+
+I optimized this by creating a singleton lookup table of bytes:
+
+```python
+BYTE_TABLE = tuple(bytes([i]) for i in range(256))
+```
+
+Then using it to build the token keys:
+
+```python
+token_key = tuple(BYTE_TABLE[b] for b in encoded_token)
+```
+
+Here are the results:
+
+```
+uv run python -m cs336_basics.perf_tests tiny_stories_valid
+Running profiler for command: train_bpe("data/TinyStoriesV2-GPT4-valid.txt", 10000, ['<|endoftext|>'])
+Wed Feb 11 20:37:51 2026    cs336_basics/profiler_results/tiny_stories_validation-2026-02-11_20-37-41
+
+         48742413 function calls (48742315 primitive calls) in 10.659 seconds
+
+   Ordered by: cumulative time
+   List reduced from 221 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   10.659   10.659 {built-in method builtins.exec}
+        1    0.001    0.001   10.659   10.659 <string>:1(<module>)
+        1    0.002    0.002   10.658   10.658 train_bpe.py:3(train_bpe)
+        1    0.063    0.063   10.643   10.643 train_bpe_core.py:17(train_bpe_core)
+    27631    5.579    0.000    8.137    0.000 train_bpe_core.py:86(pretokenize)
+        1    0.008    0.008    1.811    1.811 train_bpe_core.py:130(merge_pairs)
+ 27562412    1.690    0.000    1.690    0.000 train_bpe_core.py:105(<genexpr>)
+     9743    0.141    0.000    1.200    0.000 train_bpe_core.py:176(merge_token_pair)
+    27631    0.432    0.000    0.610    0.000 train_bpe_core.py:112(merge_pretokenized_counters_in_place)
+     9743    0.002    0.000    0.601    0.000 train_bpe_core.py:148(find_best_pair)
+
+
+
+Finsihed profiling in 10.658303 seconds. Results saved to cs336_basics/profiler_results/tiny_stories_validation-2026-02-11_20-37-41
+```
+
+We see a modest improvement, reduced the cost of that statement from 2+ seconds to 1.7. Not as huge in the large scheme of things,
+but a nice win given it's a fairly simple change.
