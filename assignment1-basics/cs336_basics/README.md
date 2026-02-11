@@ -38,3 +38,9 @@ path = "cs336_basics/profiler_results/corpus_en-2026-02-09_21-12-43"
 results = pstats.Stats(path)
 results.strip_dirs().sort_stats(SortKey.TIME).print_stats(20)
 ```
+
+- Run BPE unit tests
+
+```bash
+uv run pytest tests/test_train_bpe.py
+```

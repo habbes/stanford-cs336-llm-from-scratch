@@ -639,3 +639,55 @@ Tue Feb 10 18:09:59 2026    cs336_basics/profiler_results/tiny_stories_validatio
 - `<genexpr>`: This likely the tuple comprehension in the following statement: `token_key = tuple(encoded_token[i:i+1] for i in range(len(encoded_token)))`. Not yet sure how to optimize this.
 
 I'll first start with `compute_best_pair`. I think it's worthwhile trying the max heap approach.
+
+**Optimization: Use max heap to efficiently compute best pair**
+
+I've refactored the code and added a `TokenPairIndex` class that encapsulates a max heap
+that can retrieve the most frequent pair. The assignment code is using Python 3.11,
+but Python's public max heap APIs (like `heapq.heapify_max`) were only added in 3.14.
+So I resorted to a workaround using a min heap with max heap semantics
+(e.g. using negative count and reverse ordering of the token pair).
+
+Pushing and popping from the heap are O(logn) operation, but if you want to update
+an arbitrary entry, you'd need to scan the list in O(n) since it isn't actually sorted.
+I considered using a sorted collection, such as a self-balancing search tree, but I
+didn't find one in the standard library. I did find a [`sortedcontainers`](https://pypi.org/project/sortedcontainers) library,
+but I didn't want to rely on external libraries for this assignment.
+
+So how do we update the heap when arbitrary pairs are removed or have their counts updated?
+Well I decided not to update the heap at that moment. I still keep track of the `pair_counts`
+dictionary. When I pop something from the heap, I check whether the count from the heap
+matches that in the `pair_counts` map, if they don't match, I consider it a stale entry,
+discard it and pop again until I find an item whose count is consistent with `pair_count`.
+
+Here are the results of the optimization:
+
+```
+uv run python -m cs336_basics.perf_tests tiny_stories_valid
+Running profiler for command: train_bpe("data/TinyStoriesV2-GPT4-valid.txt", 10000, ['<|endoftext|>'])
+Wed Feb 11 20:08:47 2026    cs336_basics/profiler_results/tiny_stories_validation-2026-02-11_20-08-34
+
+         54161414 function calls (54161316 primitive calls) in 12.592 seconds
+
+   Ordered by: cumulative time
+   List reduced from 221 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   12.592   12.592 {built-in method builtins.exec}
+        1    0.001    0.001   12.592   12.592 <string>:1(<module>)
+        1    0.003    0.003   12.591   12.591 train_bpe.py:3(train_bpe)
+        1    0.067    0.067   12.572   12.572 train_bpe_core.py:16(train_bpe_core)
+    27631    6.671    0.000   10.043    0.000 train_bpe_core.py:90(pretokenize)
+ 27562412    2.270    0.000    2.270    0.000 train_bpe_core.py:108(<genexpr>)
+        1    0.008    0.008    1.797    1.797 train_bpe_core.py:135(merge_pairs)
+     9743    0.141    0.000    1.196    0.000 train_bpe_core.py:194(merge_token_pair)
+    27631    0.445    0.000    0.642    0.000 train_bpe_core.py:117(merge_pretokenized_counters_in_place)
+     9743    0.002    0.000    0.590    0.000 train_bpe_core.py:166(find_best_pair)
+
+
+
+Finsihed profiling in 12.593223 seconds. Results saved to cs336_basics/profiler_results/tiny_stories_validation-2026-02-11_20-08-34
+```
+
+We get a 34% speedup (19.2 to 12.6 seconds). Not that flashy compared to some of the other speedups, but pretty good. `find_best_pair`
+hardly appears in the top 10 anymore.

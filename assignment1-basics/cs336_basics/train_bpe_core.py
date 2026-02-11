@@ -4,6 +4,9 @@
 # handle large corpora.
 
 import regex as re
+import heapq
+from functools import total_ordering
+from collections import defaultdict
 
 # The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
@@ -223,7 +226,7 @@ def merge_token_pair(
     #             break
     #         i += 1
     
-    for token_key, index_to_replace in pair_index.get_words_with_pair(pair): # todo, we should copy the dict so that we can modify
+    for token_key, index_to_replace in pair_index.get_words_with_pair(pair):
         token_len = len(token_key)
         count = token_cache[token_key]
         del token_cache[token_key]
@@ -344,46 +347,30 @@ class TokenPairIndex:
     index: dict[tuple[bytes, bytes], tuple[dict[tuple[bytes], int], int]]
 
     def __init__(self, token_cache: dict[tuple[bytes], int]):
-        self.pair_counts: dict[tuple[bytes, bytes], int] = {}
+        self.pair_counts: PairCounts = None
         self.pair_to_words: dict[tuple[bytes, bytes], dict[tuple[bytes], int]] = {}
         self.word_to_pairs: dict[tuple[bytes], set[tuple[bytes, bytes]]] = {}
         self.token_cache = token_cache
         self.best_pair: tuple[bytes, bytes] = None
         self._build_index();
     
-    def get_pair_counts(self):
-        return self.pair_counts
-    
     def get_cached_best_pair(self):
-        return self.best_pair
+        return self.pair_counts.get_cached_best_pair()
     
     def compute_best_pair(self):
-        best_count = 0
-        best_pair: tuple[bytes, bytes] = None
-        for pair, count in self.pair_counts.items():
-            if best_pair is None:
-                best_pair, best_count = pair, count
-            elif count > best_count:
-                best_pair, best_count = pair, count
-            elif count == best_count:
-                if pair > best_pair:
-                    best_pair, best_count = pair, count
-        
-        self.best_pair = best_pair
-        return self.best_pair
+        return self.pair_counts.pop_best_pair()
     
     def get_pair_count(self, pair: tuple[bytes, bytes]):
-        return self.pair_counts.get(pair, 0)
+        return self.pair_counts.get_pair_count(pair)
 
     def increment_pair_count(self, pair: tuple[bytes, bytes], delta: int):
-        current_count = self.pair_counts.get(pair, 0)
-        self.pair_counts[pair] = current_count + delta
+        self.pair_counts.increment_pair_count(pair, delta)
     
     def set_pair_count(self, pair: tuple[bytes, bytes], count: int):
-        self.pair_counts[pair] = count
+        self.pair_counts.set_pair_count(pair, count)
     
     def remove_pair(self, pair: tuple[bytes, bytes]):
-        del self.pair_counts[pair]
+        self.pair_counts.remove_pair(pair)
         words_with_pair = self.pair_to_words.get(pair)
         
         if words_with_pair is not None:
@@ -454,9 +441,10 @@ class TokenPairIndex:
                 self.add_word_link(pair, word, i) 
     
     def _build_index(self):
-        pair_counts = self.pair_counts
+        pair_counts = {}
         best_pair: tuple[bytes, bytes] = None
         best_count: int = 0
+        
         for token_key, count in self.token_cache.items():
             for i in range(len(token_key) - 1):
                 pair = (token_key[i], token_key[i + 1])
@@ -476,4 +464,93 @@ class TokenPairIndex:
                     if pair > best_pair:
                         best_pair, best_count = pair, pair_counts[pair]
         
-        self.best_pair = best_pair
+        self.pair_counts = PairCounts(pair_counts)
+
+class PairCounts:
+    def __init__(self, initial_pair_counts: dict[tuple[bytes, bytes], int]):
+        self.pair_counts = initial_pair_counts
+        
+        # What we want is a max heap. Max heap APIs are available in heapq starting Python 3.14
+        # But we're still on 3.11. So we're going to use min heap to achieve max heap semantics
+        # by using negative count and reverse ordering for the token pairs
+        self.heap = [(-count, (ReverseSort(pair[0]), ReverseSort(pair[1])), pair) for pair, count in self.pair_counts.items()]
+
+        # Max heap to efficiently get the most frequent pair without having to do a full scan
+        # For efficiency reasons, the heap is not immediately update when token pairs are removed
+        # or when their counts are updated, since that would require an O(n) scan
+        # Instead, stale entries will be removed from the heap as items are popped
+        # This means that heap will at times have more entries than the pair_counts dict,
+        # that's the trade-off I'm willing to make.
+        # I also considered using a sorted container such as a self-balanced sorted tree, but
+        # I don't think there's any in the standard lib, and I didn't want to import an external
+        # library like https://github.com/grantjenks/python-sortedcontainers
+        heapq.heapify(self.heap)
+    
+    def get_pair_count(self, pair: tuple[bytes, bytes]):
+        return self.pair_counts.get(pair, 0)
+
+    def increment_pair_count(self, pair: tuple[bytes, bytes], delta: int):
+        current_count = self.pair_counts.get(pair, 0)
+        self.pair_counts[pair] = current_count + delta
+        self._add_to_heap(pair, current_count + delta)
+    
+    def set_pair_count(self, pair: tuple[bytes, bytes], count: int):
+        self.pair_counts[pair] = count
+        # We add a new entry in the count without deleting the existing one
+        # We'll remove stale entries when items get popped
+        self._add_to_heap(pair, count)
+    
+    def remove_pair(self, pair: tuple[bytes, bytes]):
+        del self.pair_counts[pair]
+        # We don't remove the pair from the heap at this point
+        # since that would be an expensive scan
+    
+    def get_cached_best_pair(self):
+        """
+        Gets the most frequent pair. This method is a minor
+        optimization that should only be called once,
+        after the instance is constructed. After that,
+        you should always call pop_best_pair instead.
+        """
+        if not self.heap:
+            return None
+        
+        return self.heap[0][2]
+    
+    def pop_best_pair(self):
+        if not self.heap:
+            assert False
+            return None
+        
+        count, _, pair = heapq.heappop(self.heap)
+        actual_count = self.pair_counts.get(pair, -1)
+        while count != -actual_count:
+            if not self.heap:
+                assert False
+                return None
+            # we found stale entry, discard and continue search
+            count, _, pair = heapq.heappop(self.heap)
+            actual_count = self.pair_counts.get(pair, -1)
+        
+        assert count == -actual_count
+        return pair
+    
+    def _add_to_heap(self, pair: tuple[bytes, bytes], count: int):
+        entry = (-count, (ReverseSort(pair[0]), ReverseSort(pair[1])), pair)
+        heapq.heappush(self.heap, entry)
+
+    def __getitem__(self, key: tuple[bytes, bytes]):
+        return self.pair_counts[key]
+    
+
+# See: https://docs.python.org/3/library/functools.html#functools.total_ordering
+@total_ordering
+class ReverseSort:
+    def __init__(self, value):
+        self.value = value
+
+    def __lt__(self, other):
+        return self.value > other.value
+
+    def __eq__(self, other):
+        return self.value == other.value

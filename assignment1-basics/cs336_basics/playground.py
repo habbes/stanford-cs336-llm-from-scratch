@@ -43,7 +43,7 @@ def test_train_bpe_special_tokens():
     sample_text = """low low low low low
 <|endoftext|>
 lower lower widest<|endoftext|>widest widest
-newest newest newest<|endoftext|> newest newest newest<|endoftext\>
+newest newest newest<|endoftext|> newest newest newest<|endoftext|>
     """
 
     vocab_size= 256 + 1 + 6 # 256 byte values, 1 special token, 6 tokens from BPE merges
@@ -233,6 +233,12 @@ def test_max_heap_token_pairs_ordering():
 
         def __eq__(self, other):
             return self.value == other.value
+        
+        def __repr__(self):
+            return f"ReverseSort({self.value})"
+        
+        def __str__(self):
+            return self.__repr__()
     
 
     pair_counts = {
@@ -246,6 +252,7 @@ def test_max_heap_token_pairs_ordering():
     }
 
     heap = [(-count, (ReverseSort(pair[0]), ReverseSort(pair[1])), pair) for pair, count in pair_counts.items()]
+    heapq.heapify(heap)
     
     sorted = []
     while heap:
