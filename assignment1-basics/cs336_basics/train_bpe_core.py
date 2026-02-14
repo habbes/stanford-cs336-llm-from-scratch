@@ -12,6 +12,7 @@ from collections import defaultdict
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
 # See: https://github.com/openai/tiktoken/pull/234/files 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+COMPILED_PAT = re.compile(PAT)
 BYTE_TABLE = tuple(bytes([i]) for i in range(256))
 
 def train_bpe_core(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
@@ -83,7 +84,7 @@ def split_on_special_tokens(corpus: str, escaped_special_tokens: list[bytes|str]
     escaped_special_tokens = [token.decode("utf-8").replace('|', '\\|') if isinstance(token, bytes) else token.replace('|', '\\|') for token in escaped_special_tokens]
     return re.split("|".join(escaped_special_tokens), corpus)
 
-def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], int]:
+def pretokenize(corpus: str, pretoken_regex: str = None) -> dict[tuple[bytes], int]:
     """
     Once you have a vocabulary, you could, in principle, count how often bytes occur next to each
     other in your text and begin merging them starting with the most frequent pair of bytes.
@@ -96,7 +97,7 @@ def pretokenize(corpus: str, pretoken_regex: str = PAT) -> dict[tuple[bytes], in
     we will see that the word 'text' has 't' and 'e' adjacent and we can increment their count by 10 instead of looking through the corpus.
     Since we're training a byte-level BPE model, each pre-token is represented as a sequence of UTF-8 bytes
     """
-    pretokens = re.finditer(pretoken_regex, corpus)
+    pretokens = COMPILED_PAT.finditer(pretoken_regex, corpus) if pretoken_regex is None else re.finditer(pretoken_regex, corpus)
     cache: dict[tuple[bytes], int] = {}
     for match in pretokens:
         token = match.group(0)

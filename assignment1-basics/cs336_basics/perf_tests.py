@@ -37,6 +37,10 @@ def measure_tiny_stories_valid():
     corpus = "data/TinyStoriesV2-GPT4-valid.txt"
     measure_training("tiny_stories_validation", corpus, 10000)
 
+def profile_bpe_tiny_stories_train():
+    corpus = "data/TinyStoriesV2-GPT4-train.txt"
+    measure_training("tiny_stories_training", corpus, 10000)
+
 def print_help():
     print("USAGE:")
     print("uv run python -m cs336_basics.perf_tests <SCENARIO>")
@@ -48,7 +52,8 @@ def print_help():
 if __name__ == "__main__":
     scenarios = {
         "corpus_en": { "fn": measure_corpus_en, "desc": "Small test fixture, vocab size = 500" },
-        "tiny_stories_valid": { "fn": measure_tiny_stories_valid, "desc": "TinyStoriesV2-GPT4, vocab size = 10000"}
+        "tiny_stories_valid": { "fn": measure_tiny_stories_valid, "desc": "TinyStoriesV2-GPT4, vocab size = 10000"},
+        "tiny_stories_train": { "fn": profile_bpe_tiny_stories_train, "desc": "TinyStoriesV2-GPT4 training data, vocab size = 10000"}
     }
 
     if len(argv) < 2:

@@ -753,3 +753,70 @@ Finsihed profiling in 10.658303 seconds. Results saved to cs336_basics/profiler_
 
 We see a modest improvement, reduced the cost of that statement from 2+ seconds to 1.7. Not as huge in the large scheme of things,
 but a nice win given it's a fairly simple change.
+
+**Failed optimization: Pre-compiling pretokenization regex**
+
+Calling `re.compile` ahead of time to precompile the pretokenization regex didn't make a noticeable difference
+to runtime:
+
+```
+uv run python -m cs336_basics.perf_tests tiny_stories_valid
+Running profiler for command: train_bpe("data/TinyStoriesV2-GPT4-valid.txt", 10000, ['<|endoftext|>'])
+Sat Feb 14 04:44:51 2026    cs336_basics/profiler_results/tiny_stories_validation-2026-02-14_04-44-40
+
+         54158252 function calls in 11.201 seconds
+
+   Ordered by: cumulative time
+   List reduced from 119 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   11.201   11.201 {built-in method builtins.exec}
+        1    0.001    0.001   11.201   11.201 <string>:1(<module>)
+        1    0.002    0.002   11.200   11.200 train_bpe.py:3(train_bpe)
+        1    0.066    0.066   11.184   11.184 train_bpe_core.py:18(train_bpe_core)
+    27631    5.705    0.000    8.684    0.000 train_bpe_core.py:87(pretokenize)
+        1    0.008    0.008    1.806    1.806 train_bpe_core.py:128(merge_pairs)
+ 27562412    1.736    0.000    1.736    0.000 train_bpe_core.py:105(<genexpr>)
+     9743    0.143    0.000    1.202    0.000 train_bpe_core.py:174(merge_token_pair)
+  9856170    0.656    0.000    0.656    0.000 {method 'get' of 'dict' objects}
+    27631    0.430    0.000    0.603    0.000 train_bpe_core.py:110(merge_pretokenized_counters_in_place)
+
+
+
+Finsihed profiling in 11.201791 seconds. Results saved to cs336_basics/profiler_results/tiny_stories_validation-2026-02-14_04-44-40
+```
+
+I think I'm generally satisifed with function optimizations. I could probably do more micro-optimizations,
+but I want to move on to other things. The next major optimization I want to experiment with is
+parallelizing the pretokenization process. But first, I want to see how long this takes on the [tiny stories training data](../data/TinyStoriesV2-GPT4-train.txt)
+
+```
+uv run python -m cs336_basics.perf_tests tiny_stories_train
+Running profiler for command: train_bpe("data/TinyStoriesV2-GPT4-train.txt", 10000, ['<|endoftext|>'])
+Sat Feb 14 05:33:19 2026    cs336_basics/profiler_results/tiny_stories_training-2026-02-14_05-13-50
+
+         4708102504 function calls in 933.467 seconds
+
+   Ordered by: cumulative time
+   List reduced from 119 to 10 due to restriction <10>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000  933.467  933.467 {built-in method builtins.exec}
+        1    0.135    0.135  933.467  933.467 <string>:1(<module>)
+        1    0.223    0.223  933.332  933.332 train_bpe.py:3(train_bpe)
+        1    5.821    5.821  927.411  927.411 train_bpe_core.py:18(train_bpe_core)
+  2717700  559.327    0.000  847.742    0.000 train_bpe_core.py:87(pretokenize)
+2729015243  168.833    0.000  168.833    0.000 train_bpe_core.py:105(<genexpr>)
+  2717700   42.336    0.000   60.126    0.000 train_bpe_core.py:110(merge_pretokenized_counters_in_place)
+799212600   51.630    0.000   51.630    0.000 {method 'get' of 'dict' objects}
+536592168   33.057    0.000   33.057    0.000 {method 'group' of '_regex.Match' objects}
+536592169   32.100    0.000   32.100    0.000 {method 'encode' of 'str' objects}
+
+
+
+Finsihed profiling in 1169.688292 seconds. Results saved to cs336_basics/profiler_results/tiny_stories_training-2026-02-14_05-13-50
+```
+
+This took around 15 min, and around 10GB memory accounding the [Activity Monitor](https://support.apple.com/en-ke/guide/activity-monitor/welcome/mac) on macOS.
+
+Before proceeding with additional optimization work, I want take some time to learn and experiment with the [scalene](https://github.com/plasma-umass/scalene) profiler.
