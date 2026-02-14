@@ -838,3 +838,24 @@ So it takes about 6.5 minutes (So the profiler's overhead is over 2x). The homew
 dataset.
 
 Before proceeding with additional optimization work, I want take some time to learn and experiment with the [scalene](https://github.com/plasma-umass/scalene) profiler.
+
+Watch the [Scalene introductory video](https://www.youtube.com/watch?v=5iEf-_7mM1k) to learn how to use Scalene and how it works.
+
+Benefits of Scalene over the built-in `cProfile`:
+- Lower overhead (Scalene's overhead with default settings is reportedly* ~1.2x, cProfile is ~2.1x)
+- Scalene profiles CPU, memory and GPU. cProfile profiles only CPU
+- Scalene reports function-level and granular, line-level information. cProfile only reports function-level information
+- Can generate HTML reports
+- Scalene can integrate with Gen AI APIs to provide AI-suggested improvements of detected performance bottlenecks
+- Scalene can profile code using the `multiprocessing` library. cProfile does not support this. Scalene also supports multithreaded python code, but I'm not planning to use multiple python threads.
+- Scalene can separate python vs C/native time, system time (I/O). cProfile does not have these features.
+
+I did not experience the reported lower overhead of Scalene. I tested it to profile the tokenizer training using
+the tiny stories validation data set:
+
+```bash
+uv run scalene run -o cs336_basics/profiler_results/scalene-profiler.json -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt
+```
+
+The training took 14.5 seconds (It took around ~11 s with `cProfile`), and it took much longer to generate the profiler report
+JSON file.
