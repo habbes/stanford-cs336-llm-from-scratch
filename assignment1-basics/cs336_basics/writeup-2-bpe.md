@@ -1,16 +1,15 @@
-# Write-up and answers for Assignment 1
+# 2. Byte-Pair Encoding (BPE) Tokenizer
 
-I'll use this doc to keep track of my answers to [Assignment 1 questions](../cs336_spring2025_assignment1_basics.pdf).
+I'll use this doc to keep track of my answers to [Assignment 1 questions](../cs336_spring2025_assignment1_basics.pdf)
+under the BPE tokenizer section..
 
-
-## 2. Byte-Pair Encoding (BPE) Tokenizer
 
 TODO: I didn't start writing down my answers until 2.5, remember
 to revisit questions in each section and write down the answers.
 
-### 2.5. Experiment with BPE Tokenizer Training
+## 2.5. Experiment with BPE Tokenizer Training
 
-#### Problem (`train_bpe`): BPE Tokenizer Training 
+### Problem (`train_bpe`): BPE Tokenizer Training 
 
 I implemented the BPE tokenizer, with support for special tokens.
 
