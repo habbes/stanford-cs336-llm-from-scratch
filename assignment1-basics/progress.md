@@ -2,6 +2,9 @@
 
 I used this to keep track of my progress to remember where I left off, in case I take an extended break from this.
 
+**Update**: Instead of keeping track of progress here, I'll be reporting progress
+and answers in more detail in the `writeup-*.md` files, e.g. [`writeup-2-bpe.md`](./cs336_basics/writeup-2-bpe.md).
+
 - Implemented `naive_bpe` to get a hang of the algo
   - To run sanity checks of `naive_bpe` implementation, `uv run playground.py` in `cs336_basics`
 - Created `train_bpe` wrapper function and updated `tests/adapters.run_train_bpe` to call the function
