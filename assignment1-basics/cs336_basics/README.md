@@ -44,3 +44,22 @@ results.strip_dirs().sort_stats(SortKey.TIME).print_stats(20)
 ```bash
 uv run pytest tests/test_train_bpe.py
 ```
+
+- Run tokenizer on a specified data set using the [`run_train_bpe`](./run_train_bpe.py) script:
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt
+```
+
+By default, this sets a vocab size of 10,000 tokens and sets the following
+list as special tokens: `['<|endoftext|>']`.
+
+You can also specify vocab size and special tokens to the list:
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -v 5000 -s '<|endoftext|>' -s '<|foo|>' 
+```
+
+```
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-valid.txt, vocab size: 5000, special tokens: ['<|endoftext|>', '<|foo|>']
+```
