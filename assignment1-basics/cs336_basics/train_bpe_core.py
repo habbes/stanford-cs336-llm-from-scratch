@@ -7,6 +7,7 @@ import regex as re
 import heapq
 from functools import total_ordering
 from collections import defaultdict
+import multiprocessing as mp
 
 # The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
@@ -38,12 +39,13 @@ def train_bpe_core(corpus: str, vocab_size: int, special_tokens: list[bytes], pr
 
     corpus_segments = split_on_special_tokens(corpus, special_tokens)
 
+    pretokenized_chunks = None
+    with mp.Pool() as pool:
+        pretokenized_chunks = pool.starmap(pretokenize, map(lambda x: (x, pretoken_regex), corpus_segments))
+
     pretokenized_cache = {}
-    for i, segment in enumerate(corpus_segments):
-        if not segment:
-            continue
-        
-        pretokenized_cache = merge_pretokenized_counters_in_place(pretokenized_cache, pretokenize(segment, pretoken_regex))
+    for chunk in pretokenized_chunks:
+        merge_pretokenized_counters_in_place(pretokenized_cache, chunk)
     
     merge_pairs(vocab, pretokenized_cache, num_merges, merges)
 

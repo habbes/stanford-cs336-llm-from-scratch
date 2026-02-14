@@ -4,6 +4,7 @@ from collections import defaultdict
 import timeit
 import datetime
 from .train_bpe_core import train_bpe_core
+import multiprocessing as mp
 
 def test_train_bpe():
     print("SCENARIO: simple corpus with no special tokens")
@@ -270,10 +271,34 @@ def test_max_heap_token_pairs_ordering():
 
     print("Test passed!")
 
+def add_tuple(args):
+    x, y = args
+    return x + y
+
+def add(x, y):
+    return x + y
+
+def test_multiprocessing_pool():
+    args = [(1, 2), (4, 5), (30, 50)]
+
+    with mp.Pool() as pool:
+        results = pool.imap_unordered(add_tuple, args)
+
+        assert 3 in results
+        assert 9 in results
+        assert 80 in results
+
+        results = pool.starmap(add, args)
+        assert 3 in results
+        assert 9 in results
+        assert 80 in results
+
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
     test_train_bpe_repeating_pairs()
     test_train_bpe_repeating_char()
     test_max_heap_token_pairs_ordering()
+    test_multiprocessing_pool()
 

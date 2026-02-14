@@ -859,3 +859,66 @@ uv run scalene run -o cs336_basics/profiler_results/scalene-profiler.json -m cs3
 
 The training took 14.5 seconds (It took around ~11 s with `cProfile`), and it took much longer to generate the profiler report
 JSON file.
+
+The insights I got from the report here are similar to what I already had in `cProfile`, `pretokenize` is the top bottleneck.
+But this report pointed at the specific line that creates `token_key` tuple from combining encoded bytes as main
+CPU and memory hotspot. The program allocated around 770MB memory, with 660M coming from `pretokenize`.
+
+**Optimization: Naive parallization with `multiprocessing.Pool`**
+
+Here's the current profile-free runtime of on the tiny stories validation data set before I do any parallelization:
+
+```
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -v 10000
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-valid.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 4.57728s
+```
+
+4.6 seconds.
+
+I've used the [`multiprocessing.Pool`](https://docs.python.org/3/library/multiprocessing.html#multiprocessing.pool.Pool)
+to parallelize the pretokenization step across multiple split segments on different CPU cores:
+
+```python
+corpus_segments = split_on_special_tokens(corpus, special_tokens)
+
+pretokenized_chunks = None
+with mp.Pool() as pool:
+    pretokenized_chunks = pool.starmap(pretokenize, map(lambda x: (x, pretoken_regex), corpus_segments))
+
+pretokenized_cache = {}
+for chunk in pretokenized_chunks:
+    merge_pretokenized_counters_in_place(pretokenized_cache, chunk)
+
+merge_pairs(vocab, pretokenized_cache, num_merges, merges)
+```
+
+This is a naive approach because it still loads the entire corpus in memory as a string and splits it
+on the main thread then sending the string segments to the pool's processes. We'll likely end up
+with much more segments than pool processes, that could lead to unnecessary overhead in coordinating
+the transfer of segment inputs to processes.
+
+But we still get a decent speedup on the tiny stories validation dataset:
+
+```bash
+time uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -v 10000
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-valid.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 2.097049s
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt  6.88s user 0.39s system 331% cpu 2.191 total
+```
+
+It takes 2.1 seconds (without profiler overhead). That's a 54% speedup.
+
+I also profiled this scenario with scalene and reported memory usage of 161MB.
+
+Let's see what that looks like on the tiny stories training dataset:
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-train.txt -v 10000
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-train.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 231.912832s
+```
+
+We're down to ~3.9 minutes. Looking at the activity monitor, Python memory went as high as 40GB, and my mac only
+has 32GB RAM. So there was probably some paging activity going on. We should be able to get more speedup
+with more efficient memory usage.
