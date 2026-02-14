@@ -3,7 +3,7 @@ from functools import total_ordering
 from collections import defaultdict
 import timeit
 import datetime
-from .train_bpe_core import train_bpe_core
+from .train_bpe_core import train_bpe_core_str
 import multiprocessing as mp
 
 def test_train_bpe():
@@ -15,7 +15,7 @@ newest newest newest newest newest newest
 
     vocab_size= 256 + 1 + 6 # 256 byte values, 1 special token, 6 tokens from BPE merges
 
-    vocab, merges = train_bpe_core(
+    vocab, merges = train_bpe_core_str(
         corpus=sample_text,
         vocab_size=vocab_size,
         special_tokens=['<|endoftext|>'],
@@ -49,7 +49,7 @@ newest newest newest<|endoftext|> newest newest newest<|endoftext|>
 
     vocab_size= 256 + 1 + 6 # 256 byte values, 1 special token, 6 tokens from BPE merges
 
-    vocab, merges = train_bpe_core(
+    vocab, merges = train_bpe_core_str(
         corpus=sample_text,
         vocab_size=vocab_size,
         special_tokens=['<|endoftext|>'],
@@ -88,7 +88,7 @@ gaining gaining
 
     vocab_size = 256 + 1 + 2
 
-    vocab, merges = train_bpe_core(
+    vocab, merges = train_bpe_core_str(
         corpus=sample_text,
         vocab_size=vocab_size,
         special_tokens=['<|endoftext|>'],
@@ -155,7 +155,7 @@ oo ooo
 
     vocab_size = 256 + 1 + 3
 
-    vocab, merges = train_bpe_core(
+    vocab, merges = train_bpe_core_str(
         corpus=sample_text,
         vocab_size=vocab_size,
         special_tokens=['<|endoftext|>'],

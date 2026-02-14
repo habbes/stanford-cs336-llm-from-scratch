@@ -1,4 +1,4 @@
-from .train_bpe_core import train_bpe_core
+from .train_bpe_core import train_bpe_core_file
 
 def train_bpe(
         input_path: str,
@@ -23,10 +23,5 @@ def train_bpe(
                 was merged with <token2>. The merges are ordered by order of creation.
     """
 
-    # TODO: Chunk input file for efficiency
-    # TODO: use a more efficient bpe implementation
-    with open(input_path, 'r', encoding='utf-8') as f:
-        corpus = f.read()
-        (vocab, merges) = train_bpe_core(corpus, vocab_size, special_tokens)
-
-        return vocab, merges
+    vocab, merges = train_bpe_core_file(input_path, vocab_size, special_tokens)
+    return vocab, merges

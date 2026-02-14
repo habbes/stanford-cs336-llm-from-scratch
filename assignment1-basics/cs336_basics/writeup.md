@@ -922,3 +922,34 @@ Completed tokenizer training in 231.912832s
 We're down to ~3.9 minutes. Looking at the activity monitor, Python memory went as high as 40GB, and my mac only
 has 32GB RAM. So there was probably some paging activity going on. We should be able to get more speedup
 with more efficient memory usage.
+
+**Optimization: process corpus file chunks in parallel**
+
+I've created a new `train_bpe_core_file` function that takes the file path as input and uses the `find_chunk_boundaries` function
+copied from the provided [`pretokenization_example.py`](./pretokenization_example.py) file to compute boundaries efficiently
+such that each chunk can be assigned to a separate process. Each process reads and pretokenizes its own chunk in parallel,
+then results are merged in the main process.
+
+Let's look at the impact on the tiny stories validation dataset
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -v 10000
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-valid.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 1.400416s
+```
+
+We're down to 1.4 seconds. A 33% speedup.
+
+Now let's look at the training dataset
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-train.txt -v 10000
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-train.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 52.640539s
+```
+
+We're down to ~53 seconds, less than a minute!!! This meets the "You should be able to get under 2 minutes for BPE training using multiprocessing during
+pretokenization and the following two facts" hint from the assignment.
+
+It's great to see all the speedup from Python-only optimizations. I would like to experiment with writing some parts in Native
+code using Rust or C++, just for my own learning. But I might do that later after I finish the BPE section.

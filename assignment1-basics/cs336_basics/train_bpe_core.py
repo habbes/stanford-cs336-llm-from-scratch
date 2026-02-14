@@ -8,6 +8,8 @@ import heapq
 from functools import total_ordering
 from collections import defaultdict
 import multiprocessing as mp
+from typing import BinaryIO
+import os
 
 # The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
@@ -16,7 +18,66 @@ PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s
 COMPILED_PAT = re.compile(PAT)
 BYTE_TABLE = tuple(bytes([i]) for i in range(256))
 
-def train_bpe_core(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+def train_bpe_core_file(corpus_path: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+    """
+    Naive BPE implementation.
+    
+    Args:
+        corpus_path (str): The file path of the input corpus.
+        vocab_size (int): Desired output vocabulary size.
+        special_tokens (list[bytes]): List of special tokens to initialize the vocabulary.
+        pretoken_regex (str): Regular expression for pretokenization.
+
+    Returns:
+        tuple: A tuple containing the vocabulary and the pretokenized cache.
+    """
+    # Pretokenize corpus chunks in parallel
+    num_processes = mp.cpu_count()
+    boundaries: list[int] = None
+    with open(corpus_path, "rb") as f:
+        boundaries = find_chunk_boundaries(f, num_processes, special_tokens[0].encode("utf-8"))
+
+    processes: list[mp.Process] = []
+    result_queue = mp.Queue()
+    for start, end in zip(boundaries[:-1], boundaries[1:]):
+        p = mp.Process(target=pretokenize_chunk, args=(corpus_path, start, end, special_tokens, result_queue))
+        p.start()
+        processes.append(p)
+    
+    pretokenized_cache = {}
+    for p in processes:
+        chunk_pretokens = result_queue.get()
+        merge_pretokenized_counters_in_place(pretokenized_cache, chunk_pretokens)
+    
+    for p in processes:
+        p.join()
+        p.close()
+
+    # Keeps track of merges that occurred
+    # Each list item is a tuple of bytes (<token1>, <token2>), representing that <token1> was merged with <token2>.
+    # The merges should be ordered by order of creation
+    merges: list[tuple[bytes, bytes]] = []
+    vocab = initialize_vocab(special_tokens)
+
+    num_merges = vocab_size - len(vocab)
+    merge_pairs(vocab, pretokenized_cache, num_merges, merges)
+
+    vocab_dict = {i: token for i, token in enumerate(vocab)}
+    return vocab_dict, merges
+
+def pretokenize_chunk(file_path: str, start: int, end: int, special_tokens: list[bytes], result_queue: mp.Queue):
+    with open(file_path, "rb") as f:
+        f.seek(start)
+        chunk = f.read(end - start).decode("utf-8", errors="ignore")
+        corpus_segments = split_on_special_tokens(chunk, special_tokens)
+
+        pretokenized_cache = {}
+        for segment in corpus_segments:
+            merge_pretokenized_counters_in_place(pretokenized_cache, pretokenize(segment))
+        
+        result_queue.put(pretokenized_cache)
+
+def train_bpe_core_str(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     Naive BPE implementation.
     
@@ -70,6 +131,60 @@ def initialize_vocab(special_tokens: list[bytes]) -> list[bytes]:
     vocab = [s if isinstance(s, bytes) else s.encode('utf-8') for s in special_tokens] + [bytes([i]) for i in range(256)]
     return vocab
 
+# This function was copied verbatime from the pretokenization_example.py file
+# It finds boundaries that we can split the file on to have chunks
+# that we can send to different parallel processing units. Chunks
+# are guaranteed not to start at an instance of the split_special_token (expect for the first)
+# boundaries are guaranteed to be unique, but may be fewer than desired number of chunks.
+# The function does not scan the entire file or load it all in memory, 
+# it guess starting points for each boundary, then scans the file in small 4K buffers
+# from thouse boundary locations until it finds the separators.
+def find_chunk_boundaries(
+    file: BinaryIO,
+    desired_num_chunks: int,
+    split_special_token: bytes,
+) -> list[int]:
+    """
+    Chunk the file into parts that can be counted independently.
+    May return fewer chunks if the boundaries end up overlapping.
+    """
+    assert isinstance(split_special_token, bytes), "Must represent special token as a bytestring"
+
+    # Get total file size in bytes
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+
+    chunk_size = file_size // desired_num_chunks
+
+    # Initial guesses for chunk boundary locations, uniformly spaced
+    # Chunks start on previous index, don't include last index
+    chunk_boundaries = [i * chunk_size for i in range(desired_num_chunks + 1)]
+    chunk_boundaries[-1] = file_size
+
+    mini_chunk_size = 4096  # Read ahead by 4k bytes at a time
+
+    for bi in range(1, len(chunk_boundaries) - 1):
+        initial_position = chunk_boundaries[bi]
+        file.seek(initial_position)  # Start at boundary guess
+        while True:
+            mini_chunk = file.read(mini_chunk_size)  # Read a mini chunk
+
+            # If EOF, this boundary should be at the end of the file
+            if mini_chunk == b"":
+                chunk_boundaries[bi] = file_size
+                break
+
+            # Find the special token in the mini chunk
+            found_at = mini_chunk.find(split_special_token)
+            if found_at != -1:
+                chunk_boundaries[bi] = initial_position + found_at
+                break
+            initial_position += mini_chunk_size
+
+    # Make sure all boundaries are unique, but might be fewer than desired_num_chunks
+    return sorted(set(chunk_boundaries))
+
 def remove_special_tokens(corpus: str, special_tokens: list[bytes|str]) -> str:
     """
     Remove special tokens from the corpus.
@@ -99,7 +214,7 @@ def pretokenize(corpus: str, pretoken_regex: str = None) -> dict[tuple[bytes], i
     we will see that the word 'text' has 't' and 'e' adjacent and we can increment their count by 10 instead of looking through the corpus.
     Since we're training a byte-level BPE model, each pre-token is represented as a sequence of UTF-8 bytes
     """
-    pretokens = COMPILED_PAT.finditer(pretoken_regex, corpus) if pretoken_regex is None else re.finditer(pretoken_regex, corpus)
+    pretokens = COMPILED_PAT.finditer(corpus) if pretoken_regex is None else re.finditer(pretoken_regex, corpus)
     cache: dict[tuple[bytes], int] = {}
     for match in pretokens:
         token = match.group(0)
