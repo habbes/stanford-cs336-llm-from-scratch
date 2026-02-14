@@ -819,4 +819,22 @@ Finsihed profiling in 1169.688292 seconds. Results saved to cs336_basics/profile
 
 This took around 15 min, and around 10GB memory accounding the [Activity Monitor](https://support.apple.com/en-ke/guide/activity-monitor/welcome/mac) on macOS.
 
+Note that all these reported times include the profiler overhead from `cProfile`. To get a more accurate measurement of the final
+total wall clock time, we should run without the profiler.
+
+I created the [`run_train_bpe`](./run_train_bpe.py) script to make it easier to run the tokenizer
+training algorithm directly against an input corpus.
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-train.txt -v 10000
+```
+
+```
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-train.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 389.934624s
+```
+
+So it takes about 6.5 minutes (So the profiler's overhead is over 2x). The homework target is to take under 2 minutes for training this
+dataset.
+
 Before proceeding with additional optimization work, I want take some time to learn and experiment with the [scalene](https://github.com/plasma-umass/scalene) profiler.
