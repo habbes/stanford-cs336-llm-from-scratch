@@ -2,6 +2,7 @@ from sys import argv
 from argparse import ArgumentParser
 from .train_bpe import train_bpe
 from datetime import datetime
+import json
 
 if __name__ == '__main__':
     parser = ArgumentParser(
@@ -22,7 +23,13 @@ if __name__ == '__main__':
     parser.add_argument(
         '-s',
         '--special_token',
-        action='append',
+        action='append'
+    )
+    parser.add_argument(
+        '-o',
+        '--output',
+        help="The file where to store the generated vocab",
+        default="vocab.json"
     )
 
     args = parser.parse_args()
@@ -30,6 +37,7 @@ if __name__ == '__main__':
     path = args.file
     vocab_size = args.vocab_size
     special_tokens = args.special_token
+    output_file = args.output
 
     if not special_tokens:
         special_tokens = ['<|endoftext|>']
@@ -37,6 +45,12 @@ if __name__ == '__main__':
     print(f"Training tokenizer, corpus: {path}, vocab size: {vocab_size}, special tokens: {special_tokens}")
 
     started = datetime.now()
-    train_bpe(path, vocab_size, special_tokens)
+    vocab, merges = train_bpe(path, vocab_size, special_tokens)
     elapsed = datetime.now() - started
     print(f"Completed tokenizer training in {elapsed.total_seconds()}s")
+
+    vocab_decoded = { k: str(v) for k,v in vocab.items() }
+    with open(output_file, 'w') as f:
+        json.dump(vocab_decoded, f)
+        print(f"Saved vocab JSON file at {output_file}")
+

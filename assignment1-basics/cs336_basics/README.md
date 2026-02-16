@@ -52,7 +52,9 @@ uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt
 ```
 
 By default, this sets a vocab size of 10,000 tokens and sets the following
-list as special tokens: `['<|endoftext|>']`.
+list as special tokens: `['<|endoftext|>']`. It saves a serialized vocab
+file in `vocab.json` byte default, which contains a JSON dict mapping
+token ids to their byte string representations.
 
 You can also specify vocab size and special tokens to the list:
 
