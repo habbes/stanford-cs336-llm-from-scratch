@@ -952,3 +952,31 @@ pretokenization and the following two facts" hint from the assignment.
 
 It's great to see all the speedup from Python-only optimizations. I would like to experiment with writing some parts in Native
 code using Rust or C++, just for my own learning. But I might do that later after I finish the BPE section.
+
+### Problem (`train_bpe_tinystories`): BPE Training on TinyStories
+
+a) Train a byte-level BPE tokenizer on the TinyStories dataset, using a maximum vocabulary size
+of 10,000. Make sure to add the TinyStories <|endoftext|> special token to the vocabulary.
+Serialize the resulting vocabulary and merges to disk for further inspection. How many hours
+and memory did training take? What is the longest token in the vocabulary? Does it make sense?
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-train.txt -v 10000 -o output/vocab-tiny-stories-train.json
+```
+
+It took 91 seconds. 
+
+```python
+import json
+p = 'output/vocab-tiny-stories-train.json'
+f = open(p, 'r')
+vocab = json.load(f)
+f.close()
+
+longest = max(vocab.values(), key=lambda x: len(x))
+
+# b' accomplishment'
+```
+
+
+The longest token was `'b' accomplishment'`.
