@@ -51,10 +51,16 @@ uv run pytest tests/test_train_bpe.py
 uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt
 ```
 
+```
+Training tokenizer, corpus: data/TinyStoriesV2-GPT4-valid.txt, vocab size: 10000, special tokens: ['<|endoftext|>']
+Completed tokenizer training in 1.768303s
+Saved vocab JSON file at output/TinyStoriesV2-GPT4-valid-vocab.json
+Saved merges JSON file at output/TinyStoriesV2-GPT4-valid-merges.json
+```
+
 By default, this sets a vocab size of 10,000 tokens and sets the following
 list as special tokens: `['<|endoftext|>']`. It saves a serialized vocab
-file in `vocab.json` byte default, which contains a JSON dict mapping
-token ids to their byte string representations.
+and merges as JSON files in the [`output`](../output) folder by default.
 
 You can also specify vocab size and special tokens to the list:
 
@@ -64,4 +70,10 @@ uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -v
 
 ```
 Training tokenizer, corpus: data/TinyStoriesV2-GPT4-valid.txt, vocab size: 5000, special tokens: ['<|endoftext|>', '<|foo|>']
+```
+
+You can specify the output dir where the vocab and merges files will be saved.
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -o path/output/dir
 ```
