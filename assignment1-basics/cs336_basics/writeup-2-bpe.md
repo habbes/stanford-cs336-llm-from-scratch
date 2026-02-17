@@ -961,14 +961,14 @@ Serialize the resulting vocabulary and merges to disk for further inspection. Ho
 and memory did training take? What is the longest token in the vocabulary? Does it make sense?
 
 ```bash
-uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-train.txt -v 10000 -o output/vocab-tiny-stories-train.json
+uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-train.txt -v 10000
 ```
 
-It took 91 seconds. 
+It took 80 seconds. 
 
 ```python
 import json
-p = 'output/vocab-tiny-stories-train.json'
+p = 'output/TinyStoriesV2-GPT4-train-vocab.json'
 f = open(p, 'r')
 vocab = json.load(f)
 f.close()
@@ -980,3 +980,49 @@ longest = max(vocab.values(), key=lambda x: len(x))
 
 
 The longest token was `'b' accomplishment'`.
+
+accomplishment is long, but also common. There are longer words in the corpus, e.g. enthusiastically, but
+there are less common. 
+
+b) Profile your code. What part of the tokenizer training process takes the most time?
+
+Pretokenization takes the most time. (TODO: profiler analysis)
+
+### Problem (`train_bpe_expts_owt`): BPE Training on OpenWebText
+
+(a) Train a byte-level BPE tokenizer on the OpenWebText dataset, using a maximum vocabulary
+size of 32,000. Serialize the resulting vocabulary and merges to disk for further inspection. What
+is the longest token in the vocabulary? Does it make sense?
+Resource requirements: ≤12 hours (no GPUs), ≤ 100GB RAM
+
+```bash
+uv run python -m cs336_basics.run_train_bpe data/owt_train.txt -v 32000  
+```
+
+The training took 4898.383s ~= 1h22min
+
+```python
+>>> import json
+>>> f = open("output/owt_train-vocab.json", "r")
+>>> j = json.load(f)
+>>> f.close()
+>>>
+>>> b = max(j.values(), key=lambda x: len(x))
+>>> b
+"b'\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82\\xc3\\x83\\xc3\\x82'"
+>>> eval(b)
+b'\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82\xc3\x83\xc3\x82'
+>>> eval(b).decode('utf8')
+'ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ'
+```
+
+The longest token, when decoded as utf8, is `'ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ'`
+
+TODO: explain whether this makes sense.
+
+
+(b) Compare and contrast the tokenizer that you get training on TinyStories versus OpenWebText.
+Deliverable: A one-to-two sentence response.
+
+The OpenWebText tokenizer has more symbols, more complete words, longer tokens, non-ascii tokens.
+TinyStories is simpler, seems to be english-only text.
