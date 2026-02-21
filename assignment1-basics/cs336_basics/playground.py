@@ -349,6 +349,65 @@ def test_simple_tokenizer_encoding():
     
     print("Test passed!")
 
+def test_simple_tokenizer_encoding_with_special_tokens():
+    print("SCENARIO: Simple tokenizer encoding with special tokens")
+    text = "the<|endoftext|> cat ate"
+    vocab = {
+        0: b'<|endoftext|>',
+        1: b' ',
+        2: b'a',
+        3: b'c',
+        4: b'e',
+        5: b'h',
+        6: b't',
+        7: b'th',
+        8: b' c',
+        9: b' a',
+        10: b'the',
+        11: b' at'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    special_tokens = ['<|endoftext|>']
+
+    tokenizer = Tokenizer(vocab, merges, special_tokens)
+    encoded = tokenizer.encode(text)
+    
+    # Special tokens are prepended to vocab.
+    # text will be pretokenized into:
+    # ['the','<|endoftext|>', ' cat', ' ate']
+    # and as sequence of bytes:
+    # [
+    #   (b't', b'h', b'e'),
+    #   (b'<|endoftext|>'),  # special token not split
+    #   (b' ', b'c', b'a', b't'),
+    #   (b' ', b'a', b't', b'e')
+    # ]
+    # After merges we'll get
+    # - (b'the')
+    # - (b'<|endoftext|>')
+    # - (b' c', b'a', b't')
+    # - (b' at', b'e')
+    # So after mapping to token IDs, we'll get
+    # -> (b'the') -> [10]
+    # -> (b'<|endoftext|>') -> [0]
+    # -> (b' c', b'a', b't') -> [8, 2, 6]
+    # -> (b' at', b'e') -> [11, 4]
+
+    expected = [10, 0, 8, 2, 6, 11, 4]
+    assert len(encoded) == len(expected), f"expected {expected} but got {encoded}"
+    for i in range(len(encoded)):
+        assert encoded[i] == expected[i], f"encoded tokens differ at pos {i}, {encoded[i]} != {expected[i]}. Expected = {expected}, Got = {encoded}"
+    
+    print("Test passed!")
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
@@ -357,4 +416,5 @@ if __name__ == "__main__":
     test_max_heap_token_pairs_ordering()
     test_multiprocessing_pool()
     test_simple_tokenizer_encoding()
+    test_simple_tokenizer_encoding_with_special_tokens()
 
