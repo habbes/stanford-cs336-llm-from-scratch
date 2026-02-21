@@ -1,7 +1,6 @@
 import regex as re
 from typing import Optional, Iterable, Iterator
-from .train_bpe_core import COMPILED_PRETOKEN_RE, BYTE_TABLE
-from .bpe_common import load_bpe_merges, load_bpe_vocab
+from .bpe_common import COMPILED_PRETOKEN_RE, BYTE_TABLE, load_bpe_merges, load_bpe_vocab
 
 def split_on_special_tokens(corpus: str, special_tokens: list[str]) -> list[str]:
     """

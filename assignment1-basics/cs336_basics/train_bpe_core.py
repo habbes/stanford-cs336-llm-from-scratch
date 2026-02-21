@@ -10,13 +10,7 @@ from collections import defaultdict
 import multiprocessing as mp
 from typing import BinaryIO
 import os
-
-# The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
-# In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
-# See: https://github.com/openai/tiktoken/pull/234/files 
-PRETOKEN_RE = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-COMPILED_PRETOKEN_RE = re.compile(PRETOKEN_RE)
-BYTE_TABLE = tuple(bytes([i]) for i in range(256))
+from .bpe_common import PRETOKEN_RE, COMPILED_PRETOKEN_RE, BYTE_TABLE
 
 def train_bpe_core_file(corpus_path: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PRETOKEN_RE) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
