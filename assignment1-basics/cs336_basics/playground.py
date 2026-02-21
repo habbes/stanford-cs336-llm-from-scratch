@@ -280,6 +280,7 @@ def add(x, y):
     return x + y
 
 def test_multiprocessing_pool():
+    print("SCENARIO: simple multiprocessing pool")
     args = [(1, 2), (4, 5), (30, 50)]
 
     with mp.Pool() as pool:
@@ -293,8 +294,11 @@ def test_multiprocessing_pool():
         assert 3 in results
         assert 9 in results
         assert 80 in results
+    
+    print("Test passed!")
 
 def test_simple_tokenizer_encoding():
+    print("SCENARIO: Simple tokenizer encoding")
     text = "the cat ate"
     vocab = {
         0: b' ',
@@ -342,6 +346,8 @@ def test_simple_tokenizer_encoding():
     assert len(encoded) == len(expected), f"expected {expected} but got {encoded}"
     for i in range(len(encoded)):
         assert encoded[i] == expected[i], f"encoded tokens differ at pos {i}, {encoded[i]} != {expected[i]}. Expected = {expected}, Got = {encoded}"
+    
+    print("Test passed!")
 
 if __name__ == "__main__": 
     test_train_bpe()

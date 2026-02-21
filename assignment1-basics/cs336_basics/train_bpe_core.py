@@ -14,11 +14,11 @@ import os
 # The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
 # See: https://github.com/openai/tiktoken/pull/234/files 
-PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-COMPILED_PAT = re.compile(PAT)
+PRETOKEN_RE = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+COMPILED_PRETOKEN_RE = re.compile(PRETOKEN_RE)
 BYTE_TABLE = tuple(bytes([i]) for i in range(256))
 
-def train_bpe_core_file(corpus_path: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+def train_bpe_core_file(corpus_path: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PRETOKEN_RE) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     Naive BPE implementation.
     
@@ -77,7 +77,7 @@ def pretokenize_chunk(file_path: str, start: int, end: int, special_tokens: list
         
         result_queue.put(pretokenized_cache)
 
-def train_bpe_core_str(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PAT) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+def train_bpe_core_str(corpus: str, vocab_size: int, special_tokens: list[bytes], pretoken_regex: str = PRETOKEN_RE) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     """
     Naive BPE implementation.
     
@@ -214,7 +214,7 @@ def pretokenize(corpus: str, pretoken_regex: str = None) -> dict[tuple[bytes], i
     we will see that the word 'text' has 't' and 'e' adjacent and we can increment their count by 10 instead of looking through the corpus.
     Since we're training a byte-level BPE model, each pre-token is represented as a sequence of UTF-8 bytes
     """
-    pretokens = COMPILED_PAT.finditer(corpus) if pretoken_regex is None else re.finditer(pretoken_regex, corpus)
+    pretokens = COMPILED_PRETOKEN_RE.finditer(corpus) if pretoken_regex is None else re.finditer(pretoken_regex, corpus)
     cache: dict[tuple[bytes], int] = {}
     for match in pretokens:
         token = match.group(0)
