@@ -4,6 +4,7 @@ from collections import defaultdict
 import timeit
 import datetime
 from .train_bpe_core import train_bpe_core_str
+from .tokenizer import Tokenizer
 import multiprocessing as mp
 
 def test_train_bpe():
@@ -293,6 +294,54 @@ def test_multiprocessing_pool():
         assert 9 in results
         assert 80 in results
 
+def test_simple_tokenizer_encoding():
+    text = "the cat ate"
+    vocab = {
+        0: b' ',
+        1: b'a',
+        2: b'c',
+        3: b'e',
+        4: b'h',
+        5: b't',
+        6: b'th',
+        7: b' c',
+        8: b' a',
+        9: b'the',
+        10: b' at'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    tokenizer = Tokenizer(vocab, merges)
+    encoded = tokenizer.encode(text)
+    
+    # text will be pretokenized into:
+    # ['the', ' cat', ' ate']
+    # and as sequence of bytes:
+    # [
+    #   (b't', b'h', b'e'),
+    #   (b' ', b'c', b'a', b't'),
+    #   (b' ', b'a', b't', b'e')
+    # ]
+    # each pretoken will be independently encoded based
+    # merges list order.
+    # For each pretoken, apply the merges in order until we can't merge no more,
+    # then convert to token ID
+    # 'the':
+    # - (b't', b'h', b'e') -- merge t-h -> (b'th', b'e') -- merge th e -> (b'the') -- token IDs -> [9]
+    # - (b' ', b'c', b'a', b't') -- merge ' '-'c' -> (b' c', b'a', b't') -- token IDs -> [7, 1, 5]
+    # - (b' ', b'a', b't', b'e') -- merge ' '-a -> (b' a', b't', b'e') -- merge ' a'-t -> (b' at', b'e') -- token IDs -> [10, 3]
+    # encoded: [9, 7, 1, 5, 10, 3]
+    expected = [9, 7, 1, 5, 10, 3]
+    assert len(encoded) == len(expected), f"expected {expected} but got {encoded}"
+    for i in range(len(encoded)):
+        assert encoded[i] == expected[i], f"encoded tokens differ at pos {i}, {encoded[i]} != {expected[i]}. Expected = {expected}, Got = {encoded}"
 
 if __name__ == "__main__": 
     test_train_bpe()
@@ -301,4 +350,5 @@ if __name__ == "__main__":
     test_train_bpe_repeating_char()
     test_max_heap_token_pairs_ordering()
     test_multiprocessing_pool()
+    test_simple_tokenizer_encoding()
 

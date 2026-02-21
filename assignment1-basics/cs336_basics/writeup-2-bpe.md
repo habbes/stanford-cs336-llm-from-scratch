@@ -999,7 +999,8 @@ Resource requirements: ≤12 hours (no GPUs), ≤ 100GB RAM
 uv run python -m cs336_basics.run_train_bpe data/owt_train.txt -v 32000  
 ```
 
-The training took 4898.383s ~= 1h22min
+The training took 4898.383s ~= 1h22min on my mac pro.
+It took 2605.4 on my Windows home lab PC.
 
 ```python
 >>> import json
@@ -1026,3 +1027,7 @@ Deliverable: A one-to-two sentence response.
 
 The OpenWebText tokenizer has more symbols, more complete words, longer tokens, non-ascii tokens.
 TinyStories is simpler, seems to be english-only text.
+
+## 2.6. BPE Tokenizer: Encoding and Decoding
+
+### 2.6.1 Encoding text
