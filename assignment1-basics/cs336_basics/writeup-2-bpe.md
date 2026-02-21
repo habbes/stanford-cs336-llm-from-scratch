@@ -1030,4 +1030,24 @@ TinyStories is simpler, seems to be english-only text.
 
 ## 2.6. BPE Tokenizer: Encoding and Decoding
 
-### 2.6.1 Encoding text
+### 2.6.1 Encoding and decoding text
+
+I started with implementing a simple "naive" tokenizer `encode(text: str) -> list[int]` function in [`tokenizer.py`](./tokenizer.py).
+It does not implement chunking for memory effiency or any optimizations yet. I haven't implement encoding from files or iterables yet.
+I wanted to get the basic algorithm correct first.
+
+I made the assumption that if special tokens are provided, then the caller will also ensure the special tokens
+are included in the input vocab, so that the tokenizer does not need to inject special tokens in the vocab
+or assume that special tokens appear in any specific position in the vocab dictionary.
+
+I've updated the `get_tokenizer` function in [`tests/adapters.py`](../tests/adapters.py) so that it returns
+an instance of my `Tokenizer` class.
+
+Then run the tests to see if my basic implementation passes at least one of the tests.
+
+```bash
+uv run pytest tests/test_tokenizer.py
+```
+
+All tests fail. Many of them fail because I've not implemented all methods (e.g. `decode`, `encode_iterable`, etc.) Some probably fail due to incorrect implementation of `encode`. Since a good number of tests are based on roundtrip checking, let me implement
+`decode` first before debugging test failures.
