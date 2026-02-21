@@ -4,6 +4,7 @@ from .train_bpe import train_bpe
 from datetime import datetime
 import json
 import os
+from .bpe_common import dump_bpe_vocab, dump_bpe_merges
 
 if __name__ == '__main__':
     parser = ArgumentParser(
@@ -60,13 +61,9 @@ if __name__ == '__main__':
     elapsed = datetime.now() - started
     print(f"Completed tokenizer training in {elapsed.total_seconds()}s")
 
-    vocab_decoded = { k: str(v) for k,v in vocab.items() }
-    with open(vocab_file, 'w') as f:
-        json.dump(vocab_decoded, f)
-        print(f"Saved vocab JSON file at {vocab_file}")
+    dump_bpe_vocab(vocab, vocab_file)
+    print(f"Saved vocab JSON file at {vocab_file}")
     
-    merges_decoded = [(str(a), str(b)) for a, b in merges]
-    with open(merges_file, 'w') as f:
-        json.dump(merges_decoded, f)
-        print(f"Saved merges JSON file at {merges_file}")
+    dump_bpe_merges(merges, merges_file)
+    print(f"Saved merges JSON file at {merges_file}")
 
