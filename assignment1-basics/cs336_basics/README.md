@@ -39,12 +39,6 @@ results = pstats.Stats(path)
 results.strip_dirs().sort_stats(SortKey.TIME).print_stats(20)
 ```
 
-- Run BPE unit tests
-
-```bash
-uv run pytest tests/test_train_bpe.py
-```
-
 - Run tokenizer on a specified data set using the [`run_train_bpe`](./run_train_bpe.py) script:
 
 ```bash
@@ -76,4 +70,18 @@ You can specify the output dir where the vocab and merges files will be saved.
 
 ```bash
 uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -o path/output/dir
+```
+
+- Run official tests
+
+BPE training tests
+
+```bash
+uv run pytest tests/test_train_bpe.py
+```
+
+Tokenizer tests
+
+```bash
+uv run pytest tests/tokenizer.py
 ```

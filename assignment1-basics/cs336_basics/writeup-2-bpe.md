@@ -1051,3 +1051,21 @@ uv run pytest tests/test_tokenizer.py
 
 All tests fail. Many of them fail because I've not implemented all methods (e.g. `decode`, `encode_iterable`, etc.) Some probably fail due to incorrect implementation of `encode`. Since a good number of tests are based on roundtrip checking, let me implement
 `decode` first before debugging test failures.
+
+After implementing `decode`, now I'm gaint 16 passed tests
+
+```bash
+uv run pytest tests/test_tokenizer.py
+```
+
+```
+============================================================================== short test summary info ===============================================================================
+FAILED tests/test_tokenizer.py::test_overlapping_special_tokens - TypeError: expected string or buffer
+FAILED tests/test_tokenizer.py::test_address_roundtrip - AssertionError: assert 'Four score a... the earth.\n' == 'Four score a... the earth.\n'
+FAILED tests/test_tokenizer.py::test_address_matches_tiktoken - AssertionError: assert [15137, 4776,...12, 2084, ...] == [15137, 4776,...12, 2084, ...]
+FAILED tests/test_tokenizer.py::test_german_roundtrip - AssertionError: assert 'Die Leland S...Lavigne.[2]\n' == 'Die Leland S...Lavigne.[2]\n'
+FAILED tests/test_tokenizer.py::test_german_matches_tiktoken - AssertionError: assert [32423, 406, ...00, 2059, ...] == [32423, 406, ...00, 2059, ...]
+FAILED tests/test_tokenizer.py::test_encode_iterable_tinystories_sample_roundtrip - AttributeError: 'Tokenizer' object has no attribute 'encode_iterable'
+FAILED tests/test_tokenizer.py::test_encode_iterable_tinystories_matches_tiktoken - AttributeError: 'Tokenizer' object has no attribute 'encode_iterable'
+====================================================================== 7 failed, 16 passed, 2 skipped in 7.16s =======================================================================
+```

@@ -408,6 +408,75 @@ def test_simple_tokenizer_encoding_with_special_tokens():
     
     print("Test passed!")
 
+def test_simple_tokenizer_decoding():
+    print("SCENARIO: Simple tokenizer decoding")
+
+    text = "the cat ate"
+    vocab = {
+        0: b' ',
+        1: b'a',
+        2: b'c',
+        3: b'e',
+        4: b'h',
+        5: b't',
+        6: b'th',
+        7: b' c',
+        8: b' a',
+        9: b'the',
+        10: b' at'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    tokenizer = Tokenizer(vocab, merges)
+    encoded = tokenizer.encode(text)
+    decoded = tokenizer.decode(encoded)
+
+    assert decoded == text
+
+    print("Test passed!")
+
+def test_simple_tokenizer_decoding_with_special_tokens():
+    print("SCENARIO: Simple tokenizer decoding with special tokens")
+
+    text = "the<|endoftext|> cat ate"
+    vocab = {
+        0: b' ',
+        1: b'a',
+        2: b'c',
+        3: b'e',
+        4: b'h',
+        5: b't',
+        6: b'th',
+        7: b' c',
+        8: b' a',
+        9: b'the',
+        10: b' at',
+        11: b'<|endoftext|>'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    tokenizer = Tokenizer(vocab, merges, special_tokens=['<|endoftext|>'])
+    encoded = tokenizer.encode(text)
+    decoded = tokenizer.decode(encoded)
+
+    assert decoded == text
+
+    print("Test passed!")
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
@@ -416,5 +485,7 @@ if __name__ == "__main__":
     test_max_heap_token_pairs_ordering()
     test_multiprocessing_pool()
     test_simple_tokenizer_encoding()
+    test_simple_tokenizer_encoding_with_special_tokens()
+    test_simple_tokenizer_decoding()
     test_simple_tokenizer_encoding_with_special_tokens()
 

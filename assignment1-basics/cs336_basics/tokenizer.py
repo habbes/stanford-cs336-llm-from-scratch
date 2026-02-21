@@ -62,6 +62,9 @@ class Tokenizer:
         self.special_tokens = special_tokens
 
     def encode(self, text: str) -> list[int]:
+        """
+        Encode an input text into a sequence of token IDs.
+        """
         segments = split_on_special_tokens(text, self.special_tokens) if self.special_tokens else [text]
         
         # Each pretoken is encoded independently, we don't perform
@@ -69,6 +72,19 @@ class Tokenizer:
         # TODO: this means we can process pretokens in parallel
         result = [token for segment in segments for pretoken in self._pretokenize(segment) for token in self._encode_pretoken(pretoken)]
         return result
+    
+    def decode(self, ids: list[int]) -> str:
+        """
+        Decode a sequence of token IDs into text
+        """
+        byte_seq = b''
+        for id in ids:
+            byte_seq += self.vocab[id]
+        
+        # Replace invalid/malformed byte sequences with Unicode replace char U+FFFD
+        # See: https://en.wikipedia.org/wiki/Specials_(Unicode_block)#Replacement_character
+        decoded = bytes.decode(byte_seq, "utf-8", errors='replace')
+        return decoded
     
     def _pretokenize(self, text: str) -> list[tuple[bytes]]:
         if self.special_tokens and text in self.special_tokens:
