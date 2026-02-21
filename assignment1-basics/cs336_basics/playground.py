@@ -408,6 +408,51 @@ def test_simple_tokenizer_encoding_with_special_tokens():
     
     print("Test passed!")
 
+def test_simple_tokenizer_encoding_with_overlapping_special_tokens():
+    print("SCENARIO: Simple tokenizer encoding with overlapping special tokens")
+    text = "the<|endoftext|><|endoftext|> cat<|endoftext|> ate"
+    vocab = {
+        0: b'<|endoftext|>',
+        1: b'<|endoftext|><|endoftext|>',
+        2: b' ',
+        3: b'a',
+        4: b'c',
+        5: b'e',
+        6: b'h',
+        7: b't',
+        8: b'th',
+        9: b' c',
+        10: b' a',
+        11: b'the',
+        12: b' at'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    special_tokens = ['<|endoftext|>', '<|endoftext|><|endoftext|>']
+
+    tokenizer = Tokenizer(vocab, merges, special_tokens)
+    encoded = tokenizer.encode(text)
+
+    # -> (b'the') -> [11]
+    # -> (b'<|endoftext|><|endoftext|>') -> [1]
+    # -> (b' c', b'a', b't') -> [9, 3, 7]
+    # -> (b'<|endoftext|>') -> [0]
+    # -> (b' at', b'e') -> [12, 5]
+
+    expected = [11, 1, 9, 3, 7, 0, 12, 5]
+    assert len(encoded) == len(expected), f"expected {expected} but got {encoded}"
+    for i in range(len(encoded)):
+        assert encoded[i] == expected[i], f"encoded tokens differ at pos {i}, {encoded[i]} != {expected[i]}. Expected = {expected}, Got = {encoded}"
+    
+    print("Test passed!")
+
 def test_simple_tokenizer_decoding():
     print("SCENARIO: Simple tokenizer decoding")
 
@@ -486,6 +531,7 @@ if __name__ == "__main__":
     test_multiprocessing_pool()
     test_simple_tokenizer_encoding()
     test_simple_tokenizer_encoding_with_special_tokens()
+    test_simple_tokenizer_encoding_with_overlapping_special_tokens()
     test_simple_tokenizer_decoding()
     test_simple_tokenizer_encoding_with_special_tokens()
 

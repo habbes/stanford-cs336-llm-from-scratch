@@ -2,7 +2,7 @@ import regex as re
 from typing import Optional
 from .train_bpe_core import COMPILED_PRETOKEN_RE, BYTE_TABLE
 
-def split_on_special_tokens(corpus: str, escaped_special_tokens: list[str]) -> list[str]:
+def split_on_special_tokens(corpus: str, special_tokens: list[str]) -> list[str]:
     """
     Split the text on special tokens so that we don't merge across
     document boundaries. The returned list also includes the special tokens
@@ -13,12 +13,13 @@ def split_on_special_tokens(corpus: str, escaped_special_tokens: list[str]) -> l
     -> ["the", "<|endoftext|>", " cat ate"]
     """
 
+    # escape the pipe | character in the regex since it's a special regex char
     # wrap the special tokens in capturing groups in the regex so that they can be included
     # in the re.split result
-    # escape the pipe | character in the regex since it's a special regex char
     escaped_special_tokens = [
-        "(" + token.replace('|', '\\|') + ")" for token in escaped_special_tokens]
-    return re.split("|".join(escaped_special_tokens), corpus)
+        "(" + token.replace('|', '\\|') + ")" for token in special_tokens]
+    
+    return filter(lambda x: x is not None and len(x) > 0, re.split("|".join(escaped_special_tokens), corpus))
 
 def get_utf8_bytes_tuple(text: str) -> tuple[bytes]:
     encoded = text.encode("utf-8")
@@ -59,14 +60,20 @@ class Tokenizer:
         self.vocab = vocab
         self.token_ids = { token : id for id, token in vocab.items() }
         self.merges = merges
-        self.special_tokens = special_tokens
+
+        # Sort the special tokens in desending order of length so
+        # we can properly handle overlapping sequences by making sure
+        # the longer match is detected first in the regex split
+        # i.e. if we have special_tokens = ['<|foo|>', '<|foo|><|foo|>']
+        # and input text 'bar<|foo|><|foo|>', we want <|foo|><|foo|> to
+        # be matched, instead of <|foo|>.
+        self.special_tokens = sorted(special_tokens, key=lambda x: -len(x)) if special_tokens else None
 
     def encode(self, text: str) -> list[int]:
         """
         Encode an input text into a sequence of token IDs.
         """
         segments = split_on_special_tokens(text, self.special_tokens) if self.special_tokens else [text]
-        
         # Each pretoken is encoded independently, we don't perform
         # any merges across pretoken boundaries
         # TODO: this means we can process pretokens in parallel
