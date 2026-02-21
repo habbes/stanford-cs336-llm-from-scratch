@@ -522,6 +522,68 @@ def test_simple_tokenizer_decoding_with_special_tokens():
 
     print("Test passed!")
 
+def test_tokenizer_encoding_with_similar_merges():
+    print("SCENARIO: Tokenizer encoding with similar merges")
+
+    vocab = {
+        0: b' ',
+        1: b'c',
+        2: b'd',
+        3: b'e',
+        4: b'a',
+        5: b't',
+        6: b'i',
+        7: b' i',
+        8: b'at',
+        9: b'ed',
+        10: b' d',
+        11: b'ic',
+        12: b'ate',
+        13: b'ated',
+        14: b' ded',
+        15: b'icated',
+        16: b'icate',
+        17: b' dedicated',
+        18: b' dedicate'
+    }
+
+    merges = [
+        (b' ', b'i'),
+        (b'a', b't'),
+        (b'e', b'd'),
+        (b' ', b'd'),
+        (b'i', b'c'),
+        (b'at', b'e'),
+        (b'at', b'ed'),
+        (b' d', b'ed'),
+        (b'ic', b'ated'),
+        (b'ic', b'ate'),
+        (b' ded', b'icated'),
+        (b' ded', b'icate')
+    ]
+
+    tokenizer = Tokenizer(vocab, merges)
+
+    text = 'i dedicated i dedicate'
+    encoded = tokenizer.encode(text)
+
+    # pretokens: [(i), (' ',d,e,d,i,c,a,t,e,d), (' ',i), (' ',d,e,d,i,c,a,t,e)]
+    # merges (skipped intermiedate merges):
+    # - [('i'), (' ded','icate', 'd'), (' i'), (' ded', 'icate')]
+    # - [('i'), (' ded','icated'), (' i'), (' ded', 'icate')]
+    # - [(i), (' dedicated'), (' i'), (' dedicate')]
+    # token ids:
+    # - [6, 17, 7, 18]
+    expected = [6, 17, 7, 18]
+    assert len(encoded) == len(expected), f"Expected {expected} but got {encoded}"
+    for i in range(len(encoded)):
+        assert encoded[i] == expected[i], f"Mismatch at position {i}, {encoded[i]} != {expected[i]}. Expected {expected}, Got: {encoded}"
+
+    decoded = tokenizer.decode(encoded)
+    assert decoded == text
+
+    print("Test passed!")
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
@@ -534,4 +596,5 @@ if __name__ == "__main__":
     test_simple_tokenizer_encoding_with_overlapping_special_tokens()
     test_simple_tokenizer_decoding()
     test_simple_tokenizer_encoding_with_special_tokens()
+    test_tokenizer_encoding_with_similar_merges()
 

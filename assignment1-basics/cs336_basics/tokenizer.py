@@ -105,15 +105,25 @@ class Tokenizer:
 
     def _encode_pretoken(self, pretoken: tuple[bytes]) -> list[int]:
         result = pretoken
+        merges_used = []
         for merge in self.merges:
             merge_result = try_merge(result, merge)
             if merge_result is not None:
+                merges_used.append((merge, merge_result))
                 result = merge_result
                 # short-circuit if the result is only 1 token
                 if len(result) == 1:
                     break
         
         encoded = [self.token_ids[token] for token in result]
+        b = b''
+        for p in pretoken: b += p
+        d = b.decode('utf-8')
+        if 'dedicate' in d:
+            print("\nENCODING", pretoken, 'to', encoded)
+            print("Merges for encoding")
+            for m in merges_used: print(m)
+            
         return encoded
 
     
