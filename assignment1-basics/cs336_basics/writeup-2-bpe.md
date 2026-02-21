@@ -1059,7 +1059,6 @@ uv run pytest tests/test_tokenizer.py
 ```
 
 ```
-============================================================================== short test summary info ===============================================================================
 FAILED tests/test_tokenizer.py::test_overlapping_special_tokens - TypeError: expected string or buffer
 FAILED tests/test_tokenizer.py::test_address_roundtrip - AssertionError: assert 'Four score a... the earth.\n' == 'Four score a... the earth.\n'
 FAILED tests/test_tokenizer.py::test_address_matches_tiktoken - AssertionError: assert [15137, 4776,...12, 2084, ...] == [15137, 4776,...12, 2084, ...]
