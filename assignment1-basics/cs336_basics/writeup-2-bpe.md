@@ -1088,3 +1088,53 @@ To eﬀiciently tokenize this large file (or any other stream of data), we need 
 chunks and process each chunk in-turn, so that the memory complexity is constant as opposed to linear in
 the size of the text. In doing so, we need to make sure that a token doesn’t cross chunk boundaries, else
 we’ll get a different tokenization than the naïve method of tokenizing the entire sequence in-memory.
+
+I've implemented `encode_iterable`. It returns a custom iterator that reads the input iterable in chunks
+of approx. 4096 chars (configurable) the tokenizes the chunk into a buffer. When `next` is called
+on the iterator, it returns the next item in the buffer, when the buffer is empty, it reads the next
+chunk from the source. It also adjusts each chunk to ensure it doesn't split a pretoken or special token boundary.
+
+The implementation is messy and has inefficiencies, but surprisingly it passed all tests on first attempt. Still
+haven't run the memory tests on linux though. I'll do that before I optimize the function.
+
+```
+tests/test_tokenizer.py::test_encode_iterable_memory_usage SKIPPED (rlimit support for non-linux systems is spotty.)
+tests/test_tokenizer.py::test_encode_memory_usage SKIPPED (rlimit support for non-linux systems is spotty.)
+
+=========================================================================== 23 passed, 2 skipped in 9.28s ============================================================================
+```
+
+But before I do that, I want to implement the `Tokenizer.from_files` function, which is the last one for the class.
+This is a factory method that should deserialize vocab and merges from files and use that to build a tokenizer.
+In the previous section, I used a simple JSON encoding to serialize the vocab and merges in [`run_train_bpe`](./run_train_bpe.py) like so:
+
+```python
+vocab_decoded = { k: str(v) for k,v in vocab.items() }
+with open(vocab_file, 'w') as f:
+    json.dump(vocab_decoded, f)
+
+merges_decoded = [(str(a), str(b)) for a, b in merges]
+with open(merges_file, 'w') as f:
+    json.dump(merges_decoded, f)
+```
+
+I'll use this same format for now since I already have vocab and merge files serialized in this format. But it's worth noting
+that these formats different from the formats used in the offial test fixtures, which are arguably more readable too.
+One key issue with the format that I use, it's easy to serialize, but the easiest way to deserialize is to use python's
+`eval` to convert a raw string like `"b'<|endoftext|>'"` into the actual byte sequence `b'<|endoftext|>'`.
+Using `eval` this way makes deserialization a **security vulnerability** if used it with untrusted input. So I should
+definitely change it.
+
+```python
+def load_bpe_vocab(path: str) -> dict[int, bytes]:
+    """
+    Loads and deserializes a BPE vocab dictionary
+    from the specified path.
+    """
+    with open(path, 'r') as f:
+        vocab_raw = json.load(f)
+        vocab_decoded = { int(id): eval(raw_token) for id, raw_token in vocab_raw.items() }
+        return vocab_decoded
+```
+
+I'll move the serialziation functions to a separate module for common utilities [`bpe_common.py`](./bpe_common.py).
