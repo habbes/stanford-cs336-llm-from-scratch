@@ -522,8 +522,8 @@ def test_simple_tokenizer_decoding_with_special_tokens():
 
     print("Test passed!")
 
-def test_tokenizer_encoding_with_similar_merges():
-    print("SCENARIO: Tokenizer encoding with similar merges")
+def test_tokenizer_encoding_multiple_merges_in_word():
+    print("SCENARIO: Tokenizer encoding with the same pair is merged multiple times")
 
     vocab = {
         0: b' ',
@@ -596,5 +596,5 @@ if __name__ == "__main__":
     test_simple_tokenizer_encoding_with_overlapping_special_tokens()
     test_simple_tokenizer_decoding()
     test_simple_tokenizer_encoding_with_special_tokens()
-    test_tokenizer_encoding_with_similar_merges()
+    test_tokenizer_encoding_multiple_merges_in_word()
 
