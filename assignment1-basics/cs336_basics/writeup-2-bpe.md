@@ -1068,3 +1068,15 @@ FAILED tests/test_tokenizer.py::test_encode_iterable_tinystories_sample_roundtri
 FAILED tests/test_tokenizer.py::test_encode_iterable_tinystories_matches_tiktoken - AttributeError: 'Tokenizer' object has no attribute 'encode_iterable'
 ====================================================================== 7 failed, 16 passed, 2 skipped in 7.16s =======================================================================
 ```
+
+I fixed bugs in the `encode` method, now the only reported failed tests are due to the missing `encode_iterable` method.
+
+The 2 tests skipped are memory-related tests, they're only enabled on Linux. I'll run them on Linux machine after I've
+fixed other issues.
+
+```python
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="rlimit support for non-linux systems is spotty.",
+)
+```
