@@ -1,10 +1,12 @@
 import heapq
 from functools import total_ordering
 from collections import defaultdict
+import os
 import timeit
 import datetime
 from .train_bpe_core import train_bpe_core_str
 from .tokenizer import Tokenizer
+from .bpe_common import dump_bpe_merges, load_bpe_merges, dump_bpe_vocab, load_bpe_vocab
 import multiprocessing as mp
 
 def test_train_bpe():
@@ -671,6 +673,55 @@ def test_simple_tokenizer_encode_iterable_with_special_tokens():
 
     print("Test passed!")
 
+def test_bpe_vocab_serializer_roundtrip():
+    print("SCENARIO: BPE vocab serialization roundtrip")
+
+    vocab = {
+        0: b' ',
+        1: b'foo',
+        2: b'\\x10'
+    }
+
+    path = "output/temp-test-bpe-vocab.json"
+    try:
+        os.remove(path)
+    except:
+        pass
+
+    dump_bpe_vocab(vocab, path)
+    loaded = load_bpe_vocab(path)
+
+    assert len(loaded) == len(vocab), f"Expected {vocab}, Got {loaded}"
+    for k, v in vocab.items():
+        assert v == loaded[k], f"Key mismatch {k}, {v} != {loaded[k]}. Expected {vocab}, Got {loaded}"
+    
+    print("Test passed!")
+
+def test_bpe_merges_serializer_roundtrip():
+    print("SCENARIO: BPE merges serialization roundtrip")
+
+    merges = [
+        (b'foo', b' bar'),
+        (b'\x80', b' baz')
+    ]
+
+    path = "output/temp-test-bpe-merges.json"
+    try:
+        os.remove(path)
+    except:
+        pass
+
+    dump_bpe_merges(merges, path)
+    loaded = load_bpe_merges(path)
+
+    assert len(loaded) == len(merges), f"Expected {merges}, Got {loaded}"
+    for i in range(len(merges)):
+        assert merges[i] == loaded[i], f"Mismatch at {i}, {merges[i]} != {loaded[i]}. Expected {merges}, Got {loaded}"
+    
+    print("Test passed!")
+
+    
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
@@ -686,4 +737,6 @@ if __name__ == "__main__":
     test_tokenizer_encoding_multiple_merges_in_word()
     test_simple_tokenizer_encode_iterable()
     test_simple_tokenizer_decoding_with_special_tokens()
+    test_bpe_vocab_serializer_roundtrip()
+    test_bpe_merges_serializer_roundtrip()
 
