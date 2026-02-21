@@ -80,6 +80,18 @@ BPE training tests
 uv run pytest tests/test_train_bpe.py
 ```
 
+Test specfic test function in test suite:
+
+```bash
+uv run pytest tests/test_train_bpe.py::test_train_bpe
+```
+
+By default truncated diffs are displayed for failed tests. To show full diff, use the `-vv` option:
+
+```bash
+uv run pytest tests/test_train_bpe.py::test_train_bpe -vv
+```
+
 Tokenizer tests
 
 ```bash
