@@ -1138,3 +1138,15 @@ def load_bpe_vocab(path: str) -> dict[int, bytes]:
 ```
 
 I'll move the serialziation functions to a separate module for common utilities [`bpe_common.py`](./bpe_common.py).
+
+I've ran the tests on Ubuntu on [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) on my Windows machine. It passed all the tests, including the `encode_iterable` memory tests.
+
+```
+tests/test_tokenizer.py::test_encode_iterable_memory_usage PASSED
+tests/test_tokenizer.py::test_encode_memory_usage XFAIL (Tokenizer.encode is expected to take more memory th...)
+================================ 24 passed, 1 xfailed, 1 warning in 1331.01s (0:22:11) =================================
+```
+
+The `test_encode_memory_usage` tests the `encode()` method and is expected to fail since that method is not expected to be memory efficient.
+
+Despite the tests passing, it took a long time to run, the overall test suide took 22 minutes, with most of the time spent on the memory tests. I don't know if this is expected or just the fact that my implementation is grossly inefficient. I'll also run tests on native Linux once I get it installed.
