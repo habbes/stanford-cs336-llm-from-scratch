@@ -584,6 +584,93 @@ def test_tokenizer_encoding_multiple_merges_in_word():
 
     print("Test passed!")
 
+def test_simple_tokenizer_encode_iterable():
+    print("SCENARIO: Simple tokenizer iterable encoding")
+    vocab = {
+        0: b' ',
+        1: b'a',
+        2: b'c',
+        3: b'e',
+        4: b'h',
+        5: b't',
+        6: b'th',
+        7: b' c',
+        8: b' a',
+        9: b'the',
+        10: b' at'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    tokenizer = Tokenizer(vocab, merges)
+
+    text_iterable = ["the ", "cat ", "ate"]
+
+    encoded_iterable = tokenizer.encode_iterable(text_iterable, chunk_size=5)
+    encoded_list = list(encoded_iterable)
+
+    expected = [9, 7, 1, 5, 10, 3]
+    assert len(encoded_list) == len(expected), f"Expected {expected} but got {encoded_list}"
+    for i in range(len(expected)):
+        assert encoded_list[i] == expected[i], f"Mismatch at {i}, {encoded_list[i]} != {expected[i]}. Expected: {expected}, Got: {encoded_list}"
+
+    decoded = tokenizer.decode(encoded_list)
+    
+    expected_text = "the cat ate"
+    assert decoded == expected_text
+
+    print("Test passed!")
+
+def test_simple_tokenizer_encode_iterable_with_special_tokens():
+    print("SCENARIO: Simple tokenizer iterable encoding with special tokes")
+    vocab = {
+        0: b' ',
+        1: b'a',
+        2: b'c',
+        3: b'e',
+        4: b'h',
+        5: b't',
+        6: b'th',
+        7: b' c',
+        8: b' a',
+        9: b'the',
+        10: b' at',
+        11: b'<|endoftext|>'
+    }
+
+    merges = [
+        (b't', b'h'),
+        (b' ', b'c'),
+        (b' ', b'a'),
+        (b'th', b'e'),
+        (b' a', b't')
+    ]
+
+    tokenizer = Tokenizer(vocab, merges, ['<|endoftext|>'])
+
+    text_iterable = ["the<|endo", "ftext|> cat ", "ate"]
+
+    encoded_iterable = tokenizer.encode_iterable(text_iterable, chunk_size=5)
+    encoded_list = list(encoded_iterable)
+
+    expected = [9, 7, 1, 5, 10, 3]
+    assert len(encoded_list) == len(expected), f"Expected {expected} but got {encoded_list}"
+    for i in range(len(expected)):
+        assert encoded_list[i] == expected[i], f"Mismatch at {i}, {encoded_list[i]} != {expected[i]}. Expected: {expected}, Got: {encoded_list}"
+
+    decoded = tokenizer.decode(encoded_list)
+    
+    expected_text = "the cat ate"
+    assert decoded == expected_text
+
+    print("Test passed!")
+
 if __name__ == "__main__": 
     test_train_bpe()
     test_train_bpe_special_tokens()
@@ -597,4 +684,6 @@ if __name__ == "__main__":
     test_simple_tokenizer_decoding()
     test_simple_tokenizer_encoding_with_special_tokens()
     test_tokenizer_encoding_multiple_merges_in_word()
+    test_simple_tokenizer_encode_iterable()
+    test_simple_tokenizer_decoding_with_special_tokens()
 

@@ -1,5 +1,5 @@
 import regex as re
-from typing import Optional
+from typing import Optional, Iterable, Iterator
 from .train_bpe_core import COMPILED_PRETOKEN_RE, BYTE_TABLE
 
 def split_on_special_tokens(corpus: str, special_tokens: list[str]) -> list[str]:
@@ -80,6 +80,15 @@ class Tokenizer:
         result = [token for segment in segments for pretoken in self._pretokenize(segment) for token in self._encode_pretoken(pretoken)]
         return result
     
+    def encode_iterable(self, iterable: Iterable[str], chunk_size:int = 4096) -> Iterator[int]:
+        """
+        Given an iterable of strings (e.g., a Python file handle),
+        return a generator that lazily yields token IDs.
+        This is required for memory-eﬀicient tokenization of large files
+        that we cannot directly load into memory.
+        """
+        return IterableEncoderIterator(self, iter(iterable), chunk_size)
+
     def decode(self, ids: list[int]) -> str:
         """
         Decode a sequence of token IDs into text
@@ -92,7 +101,7 @@ class Tokenizer:
         # See: https://en.wikipedia.org/wiki/Specials_(Unicode_block)#Replacement_character
         decoded = bytes.decode(byte_seq, "utf-8", errors='replace')
         return decoded
-    
+
     def _pretokenize(self, text: str) -> list[tuple[bytes]]:
         if self.special_tokens and text in self.special_tokens:
             # If it's a special token, return it as is since we won't merge it.
@@ -117,5 +126,81 @@ class Tokenizer:
         return encoded
 
     
+class IterableEncoderIterator:
+    def __init__(self, tokenizer: Tokenizer, input_iter: Iterator[str], chunk_size:int = 4096):
+        self.tokenizer = tokenizer
+        self.input_iter = input_iter
+        self.chunk_size = chunk_size
+        self.buffer = []
+        self.buffer_pos = 0
+        self.prev_leftover = []
+
+    def _read_next_chunk(self):
+        chunk = [] + self.prev_leftover
+        self.prev_leftover = []
+        chunk_length = 0
+
+        item = next(self.input_iter, None)
+        end_of_stream = item is None
+        while not end_of_stream:
+            # need to buffer items until it reaches desired chunk size
+            # but need make sure it neither crosses special token or pretoken boundary
+            chunk.append(item)
+            chunk_length += len(item)
+            if chunk_length >= self.chunk_size:
+                break
+
+            item = next(self.input_iter, None)
+            end_of_stream = item is None
+
+        chunk_str = ''.join(chunk)
+        if end_of_stream:
+            self.buffer = self.tokenizer.encode(chunk_str)
+            self.buffer_pos = 0
+            return
     
+        segments = split_on_special_tokens(chunk_str, self.tokenizer.special_tokens) if self.tokenizer.special_tokens else [chunk_str]
+        # if there are multiple segments, move the last segments to leftover, it would be processed with next chunk
+        # to ensure we're not at a boundary
+        if len(segments) > 1:
+            self.prev_leftover.append(segments[-1])
+            segments = segments[:-1]
+        else:
+            # we only have one segment, but it might end at a pretoken boundary. Let's remove
+            # the last pretoken
+            pretokens = COMPILED_PRETOKEN_RE.findall(segments[0])
+            assert len(pretokens) >= 1
+            if len(pretokens) > 1:
+                # the last pretoken might be at a chunk boundary, let's remove it and process
+                # it in the next chunk
+                self.prev_leftover = [pretokens[-1]] + self.prev_leftover # TODO optimize
+                chunk_str = ''.join(pretokens[:-1]) # TODO optimize
+            else:
+                # if we only have one pretoken, then the entire chunk might have been split
+                # at a boundary, let's buffer what we have and read more data.
+                self.prev_leftover = [chunk_str]
+                return self._read_next_chunk()
+
+        # TODO: inefficient: we pass the joined chunk_str to the tokenizer,
+        # which will split it and pretokenize it again, redundant work
+        self.buffer = self.tokenizer.encode(chunk_str)
+        self.buffer_pos = 0
+    
+    def _is_buffer_empty(self):
+        return self.buffer_pos >= len(self.buffer)
+    
+    def __iter__(self) -> Iterator[int]:
+        return self
+
+    def __next__(self) -> int:
+        if self._is_buffer_empty():
+            self._read_next_chunk()
+        
+        if self._is_buffer_empty():
+            # reached end
+            raise StopIteration
+        
+        result = self.buffer[self.buffer_pos]
+        self.buffer_pos += 1
+        return result
 

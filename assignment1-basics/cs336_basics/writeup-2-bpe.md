@@ -1080,3 +1080,11 @@ fixed other issues.
     reason="rlimit support for non-linux systems is spotty.",
 )
 ```
+
+Next, I want to implement `encode_iterable`.
+
+> **Memory considerations**. Suppose we want to tokenize a large text file that we cannot fit in memory.
+To eﬀiciently tokenize this large file (or any other stream of data), we need to break it up into manageable
+chunks and process each chunk in-turn, so that the memory complexity is constant as opposed to linear in
+the size of the text. In doing so, we need to make sure that a token doesn’t cross chunk boundaries, else
+we’ll get a different tokenization than the naïve method of tokenizing the entire sequence in-memory.
