@@ -69,6 +69,7 @@ class Tokenizer:
         # be matched, instead of <|foo|>.
         self.special_tokens = sorted(special_tokens, key=lambda x: -len(x)) if special_tokens else None
     
+    @classmethod
     def from_files(cls, vocab_file_path: str, merges_file_path: str, special_tokens: list[str]|None = None) -> 'Tokenizer':
         """
         Class method that constructs and return a Tokenizer from a serialized vocabulary and list of merges
