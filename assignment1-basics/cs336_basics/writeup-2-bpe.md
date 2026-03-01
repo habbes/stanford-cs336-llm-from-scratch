@@ -1150,3 +1150,109 @@ tests/test_tokenizer.py::test_encode_memory_usage XFAIL (Tokenizer.encode is exp
 The `test_encode_memory_usage` tests the `encode()` method and is expected to fail since that method is not expected to be memory efficient.
 
 Despite the tests passing, it took a long time to run, the overall test suide took 22 minutes, with most of the time spent on the memory tests. I don't know if this is expected or just the fact that my implementation is grossly inefficient. I'll also run tests on native Linux once I get it installed.
+
+## 2.7. Experiments with tokenizers
+
+To complete this section, I create the script [`estimate_tokenizer_ratio.py`](./estimate_tokenizer_ratio.py) which runs the tokenizer on a sample of documents from a corpus and computes the bytes per token.
+
+> (a) Sample 10 documents from TinyStories and OpenWebText. Using your previously-trained TinyS-
+> tories and OpenWebText tokenizers (10K and 32K vocabulary size, respectively), encode these
+> sampled documents into integer IDs. What is each tokenizer’s compression ratio (bytes/token)?
+>
+>  **Deliverable**: A one-to-two sentence response.
+
+Here's how to run the `TinyStories` tokenizer on a random sample of 10 documents from the training dataset:
+
+```bash
+uv run python -m cs336_basics.estimate_tokenizer_ratio \
+    -v output/TinyStoriesV2-GPT4-train-vocab.json \
+    -m output/TinyStoriesV2-GPT4-train-merges.json \
+    -c data/TinyStoriesV2-GPT4-train.txt \
+    -n 10 -r
+```
+
+Since it uses a random sample (thanks to the `r` flag), let's run it a couple of times, here are the results from 5 runs:
+
+```
+{'vocab': 'output/TinyStoriesV2-GPT4-train-vocab.json', 'merges': 'output/TinyStoriesV2-GPT4-train-merges.json', 'corpus': 'data/TinyStoriesV2-GPT4-train.txt', 'special_token': None, 'separator': '<|endoftext|>', 'num_samples': 10, 'random_samples': True, 'print_samples': False}
+Extracted 10 samples, total length 7324 chars, 7324 bytes
+Text size: 7324 bytes, Tokens: 1767, ratio: 4.144878324844369 bytes/token
+```
+
+```
+Text size: 8655 bytes, Tokens: 2104, ratio: 4.113593155893536 bytes/token
+```
+
+```
+Text size: 6901 bytes, Tokens: 1666, ratio: 4.142256902761105 bytes/token
+```
+
+```
+Text size: 7869 bytes, Tokens: 1890, ratio: 4.163492063492064 bytes/token
+```
+
+```
+Text size: 7677 bytes, Tokens: 1848, ratio: 4.154220779220779 bytes/token
+```
+
+The ratio is about 4.1 bytes/token
+
+Here's how to run the experiment with OpenWebText:
+
+```bash
+uv run python -m cs336_basics.estimate_tokenizer_ratio -v output/owt_train-vocab.json -m output/owt_train-merges.json -c data/owt_train.txt -n 10 -r
+```
+
+```
+Text size: 43827 bytes, Tokens: 9609, ratio: 4.561036528254761 bytes/token
+```
+
+```
+Text size: 48050 bytes, Tokens: 12005, ratio: 4.00249895876718 bytes/token
+```
+
+```
+Text size: 32002 bytes, Tokens: 7147, ratio: 4.4776829438925425 bytes/token
+```
+
+**Conclusion**
+
+The tokenizer throughput is consistent across the two instances, roughly about 4 bytes per token.
+
+> (b) What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer? Com-
+> pare the compression ratio and/or qualitatively describe what happens.
+> **Deliverable**: A one-to-two sentence response.
+
+Tokenizing OWT sample with TinyStories tokenizer:
+
+```bash
+uv run python -m cs336_basics.estimate_tokenizer_ratio -v output/TinyStoriesV2-GPT4-train-vocab.json -m output/TinyStoriesV2-GPT4-train-merges.json -c data/owt_train.txt -n 10 -r
+```
+
+```
+Text size: 69169 bytes, Tokens: 21485, ratio: 3.2194088899232023 bytes/token
+```
+
+```
+Text size: 29693 bytes, Tokens: 8790, ratio: 3.3780432309442547 bytes/token
+```
+
+```
+Text size: 47331 bytes, Tokens: 15778, ratio: 2.999809861832932 bytes/token
+```
+
+**Conclusion**
+
+The compression ratio drops to about 3 bytes/token. The most popular byte words in OWT are not necessarily the most popular
+words in TinyStories, and so might get encoded into longer token sequences, leading degraded compression ratio. 
+
+> (c) Estimate the throughput of your tokenizer (e.g., in bytes/second). How long would it take to
+> tokenize the Pile dataset (825GB of text)?
+>
+> **Deliverable**: A one-to-two sentence response.
+
+(d) Using your TinyStories and OpenWebText tokenizers, encode the respective training and devel-
+opment datasets into a sequence of integer token IDs. We’ll use this later to train our language
+model. We recommend serializing the token IDs as a NumPy array of datatype uint16. Why is
+uint16 an appropriate choice?
+12
