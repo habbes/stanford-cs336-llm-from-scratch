@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from datetime import datetime
 from .tokenizer import Tokenizer
 from .doc_sampler import sample_docs
 
@@ -86,9 +87,13 @@ if __name__ == '__main__':
     num_extracted_samples = samples.count(separator)
     print(f"Extracted {num_extracted_samples} samples, total length {doc_len} chars, {bytes_len} bytes")
 
+    started = datetime.now()
     tokens = tokenizer.encode(samples)
+    elapsed = datetime.now() - started
+
     num_tokens = len(tokens)
 
     print(f"Text size: {bytes_len} bytes, Tokens: {num_tokens}, ratio: {bytes_len/num_tokens} bytes/token")
+    print(f"Tokenization took {elapsed.total_seconds()} seconds, ratio: {bytes_len/elapsed.total_seconds()} bytes/seconds")
 
  

@@ -1251,6 +1251,106 @@ words in TinyStories, and so might get encoded into longer token sequences, lead
 >
 > **Deliverable**: A one-to-two sentence response.
 
+To complete this section, I've added some timing info to the [`estimate_tokenizer_ratio`](./estimate_tokenizer_ratio.py) output.
+
+I'll test different corpora and sample sizes
+
+TinyStories, 10 samples:
+
+```
+Text size: 8429 bytes, Tokens: 1974, ratio: 4.270010131712259 bytes/token
+Tokenization took 0.503657 seconds, ratio: 16735.595851938917 bytes/seconds
+```
+
+```
+Text size: 8900 bytes, Tokens: 2175, ratio: 4.091954022988506 bytes/token
+Tokenization took 0.605452 seconds, ratio: 14699.761500498802 bytes/seconds
+```
+
+```
+Text size: 8390 bytes, Tokens: 2021, ratio: 4.151410192973775 bytes/token
+Tokenization took 0.558963 seconds, ratio: 15009.938045988732 bytes/seconds
+```
+
+50 samples
+
+```
+Text size: 42361 bytes, Tokens: 10192, ratio: 4.156299058084772 bytes/token
+Tokenization took 2.681942 seconds, ratio: 15794.897876240428 bytes/seconds
+```
+
+```
+Text size: 41599 bytes, Tokens: 10084, ratio: 4.125247917493058 bytes/token
+Tokenization took 2.579118 seconds, ratio: 16129.157332080193 bytes/seconds
+```
+
+OWT 10 samples
+
+```
+Text size: 61071 bytes, Tokens: 14000, ratio: 4.362214285714286 bytes/token
+Tokenization took 16.633918 seconds, ratio: 3671.4741529926982 bytes/seconds
+```
+
+```
+Text size: 37517 bytes, Tokens: 9009, ratio: 4.164391164391164 bytes/token
+Tokenization took 11.481604 seconds, ratio: 3267.574809233971 bytes/seconds
+```
+
+```
+Text size: 35777 bytes, Tokens: 7709, ratio: 4.64093916201842 bytes/token
+Tokenization took 9.09895 seconds, ratio: 3931.992152940724 bytes/seconds
+```
+
+OWT 50 samples
+
+```
+Text size: 264109 bytes, Tokens: 60632, ratio: 4.3559341601794435 bytes/token
+Tokenization took 75.493952 seconds, ratio: 3498.4126940393853 bytes/seconds
+```
+
+```
+Text size: 218566 bytes, Tokens: 48499, ratio: 4.506608383678014 bytes/token
+Tokenization took 54.479276 seconds, ratio: 4011.910877817099 bytes/seconds
+```
+
+TinyStories tokenizer on OWT text, 10 samples
+
+```
+Text size: 56473 bytes, Tokens: 16963, ratio: 3.3291870541767374 bytes/token
+Tokenization took 8.705774 seconds, ratio: 6486.84424842639 bytes/seconds
+```
+
+```
+Text size: 37626 bytes, Tokens: 11689, ratio: 3.2189237744888355 bytes/token
+Tokenization took 6.023205 seconds, ratio: 6246.840344965844 bytes/seconds
+```
+
+50 samples
+
+```
+Text size: 279912 bytes, Tokens: 84105, ratio: 3.3281255573390407 bytes/token
+Tokenization took 42.995739 seconds, ratio: 6510.2265133761275 bytes/seconds
+```
+
+
+The throughput of the tokenizer seems to depend on the tokenizer, 14-15k b/s using TinyStories
+and ~3k b/s using OWT tokenizer. It's ~6k b/s using TinyStories tokenizer on OWT data.
+
+Why the large gap between TinyStories and OWT? I'm not sure, I need to investigate the bottleneck.
+But my hunch here is that, the gap is partially explained by the different in token vocab size and number
+of merges. The larger the vocab size and the more the merges, the longer the encoding will be. OWT tokenizer
+has a vocab size of 32k vs 10k for TinyStories. I suspedct the TinyStories tokenizer runs slower on
+OWT text because popular words in OWT which are not popular in TinyStories, will take more merge
+operations to get encoded, leading to more operations per byte on average.
+
+**Conclusion**
+
+If we use the OWT tokenizer for the Pile dataset, then we should expect it to take roughly 3,182 days (825GB/3KB seconds to days).
+If we use TinyStories tokenizer (assuming similar dataset and 16K b/s), it would take roughly 596 days. This seems too longer, need
+to investigate.
+
+
+
 (d) Using your TinyStories and OpenWebText tokenizers, encode the respective training and devel-
 opment datasets into a sequence of integer token IDs. We’ll use this later to train our language
 model. We recommend serializing the token IDs as a NumPy array of datatype uint16. Why is
