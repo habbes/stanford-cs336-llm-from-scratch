@@ -1,5 +1,7 @@
 import regex as re
 import json
+from typing import Iterable
+import numpy as np
 
 # The original BPE implementation of Sennrich et al.[2016] pre-tokenizes by simply splitting on whitespace(i.e.,s.split(" ")).
 # In contrast, we’ll use a regex-based pre-tokenizer (used by GPT-2;Radford et al.,2019)
@@ -47,3 +49,26 @@ def load_bpe_merges(path: str) -> list[tuple[bytes, bytes]]:
         # TODO using eval here is SECURITY VULNERABILITY, change serialization/deserialization to avoid it
         merges_decoded = [(eval(t1), eval(t2)) for t1, t2 in merges_raw]
         return merges_decoded
+
+def save_tokens_iter(tokens_iter: Iterable[int], output_path: str):
+    """
+    Serializes the specified stream of tokens to the specified file.
+    """
+    array = tokens_to_np_array(tokens_iter)
+    save_tokens_array(array, output_path)
+
+
+def tokens_to_np_array(tokens_iter: Iterable[int]) -> np.array:
+    return np.fromiter(tokens_iter, dtype=np.uint16)
+
+def save_tokens_array(tokens: np.array, output_path):
+    """
+    Serializes the specified tokens array to a file.
+    """
+    np.save(output_path, tokens)
+
+def load_tokens(path: str) -> np.array:
+    """
+    Loads the specified stream of tokens from a file
+    """
+    return np.load(path)
