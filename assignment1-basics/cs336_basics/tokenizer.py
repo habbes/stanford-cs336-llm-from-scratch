@@ -19,7 +19,7 @@ def split_on_special_tokens(corpus: str, special_tokens: list[str]) -> list[str]
     escaped_special_tokens = [
         "(" + token.replace('|', '\\|') + ")" for token in special_tokens]
     
-    return filter(lambda x: x is not None and len(x) > 0, re.split("|".join(escaped_special_tokens), corpus))
+    return list(filter(lambda x: x is not None and len(x) > 0, re.split("|".join(escaped_special_tokens), corpus)))
 
 def get_utf8_bytes_tuple(text: str) -> tuple[bytes]:
     encoded = text.encode("utf-8")

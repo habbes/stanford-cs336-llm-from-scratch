@@ -1355,4 +1355,33 @@ to investigate.
 opment datasets into a sequence of integer token IDs. We’ll use this later to train our language
 model. We recommend serializing the token IDs as a NumPy array of datatype uint16. Why is
 uint16 an appropriate choice?
-12
+
+```bash
+uv run python -m cs336_basics.run_tokenizer -v output/TinyStoriesV2-GPT4-train-vocab.json -m output/TinyStoriesV2-GPT4-train-merges.json -c data/TinyStoriesV2-GPT4-valid.txt -o output/TinyStoriesV2-GPT4-valid-tokens.npy
+```
+
+```
+{'vocab': 'output/TinyStoriesV2-GPT4-train-vocab.json', 'merges': 'output/TinyStoriesV2-GPT4-train-merges.json', 'corpus': 'data/TinyStoriesV2-GPT4-valid.txt', 'special_token': None, 'output': 'output/TinyStoriesV2-GPT4-valid-tokens.npy'}
+Tokenization took <built-in method total_seconds of datetime.timedelta object at 0x1065abd50> seconds. Generated 6223322 tokens.
+Generated tokens saved to output/TinyStoriesV2-GPT4-valid-tokens.npy
+```
+
+```bash
+uv run python -m cs336_basics.run_tokenizer -v output/owt_train-vocab.json -m output/owt_train-merges.json -c data/owt_valid.txt -o output/owt_valid-tokens.npy
+```
+
+```
+{'vocab': 'output/owt_train-vocab.json', 'merges': 'output/owt_train-merges.json', 'corpus': 'data/owt_valid.txt', 'special_token': None, 'output': 'output/owt_valid-tokens.npy'}
+Tokenization took 112849.478281 seconds. Generated 82775052 tokens.
+Generated tokens saved to output/owt_valid-tokens.npy
+```
+
+```bash
+uv run python -m cs336_basics.run_tokenizer -v output/TinyStoriesV2-GPT4-train-vocab.json -m output/TinyStoriesV2-GPT4-train-merges.json -c data/TinyStoriesV2-GPT4-train.txt -o output/TinyStoriesV2-GPT4-train-tokens.npy
+```
+
+```
+{'vocab': 'output/TinyStoriesV2-GPT4-train-vocab.json', 'merges': 'output/TinyStoriesV2-GPT4-train-merges.json', 'corpus': 'data/TinyStoriesV2-GPT4-train.txt', 'special_token': None, 'output': 'output/TinyStoriesV2-GPT4-train-tokens.npy'}
+Tokenization took 325944.99455 seconds. Generated 616629122 tokens.
+Generated tokens saved to output/TinyStoriesV2-GPT4-train-tokens.npy
+```
