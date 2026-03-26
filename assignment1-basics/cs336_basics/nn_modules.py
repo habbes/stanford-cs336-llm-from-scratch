@@ -18,6 +18,8 @@ class Linear(nn.Module):
         self.weights = nn.Parameter(torch.zeros((out_features, in_features), dtype=dtype, device=device))
         # Initialize from N(mean = 0, variance = 2 / (d_in + d_out) truncated at [-3stddev, 3stddev]
         init_std = math.sqrt(2 / (in_features + out_features))
+        # Note that initialization functions are execute in no_grad mode so that they don't
+        # affect the automatic gradient computation graph
         torch.nn.init.trunc_normal_(self.weights, mean=0, std=init_std, a=-3 * init_std, b=init_std)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
