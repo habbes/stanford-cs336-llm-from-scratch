@@ -188,3 +188,26 @@ Storing our weights as `W` instead of `W.T` essentially means using a tensor of 
 
 I've implemented the custom `Linear` module in the [`nn_modules.py`](./nn_modules.py) file.
 
+To test this, first I update the `run_linear` function in [`../tests/adapters.py`](../tests/adapters.py) to call
+initialize and call my custom `Linear` class. Note that it loads weights provided by the tests and not the model's
+randomly initialized weights.
+
+Then run test as
+
+```sh
+uv run pytest -k test_linear
+```
+
+Note running test fails with import error, could this be a windows issue?:
+
+```sh
+ImportError while importing test module 'C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch\assignment1-basics\tests\test_tokenizer.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\..\..\AppData\Roaming\uv\python\cpython-3.11.13-windows-x86_64-none\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_tokenizer.py:5: in <module>
+    import resource
+E   ModuleNotFoundError: No module named 'resource'
+```
