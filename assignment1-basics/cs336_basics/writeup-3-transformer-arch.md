@@ -134,6 +134,15 @@ We can achieve the row-major result using `einsum` without explicit transpose:
 tensor([[12, 26, 25]])
 ```
 
+We also achieve them same result if we swap the order of the tensors. It's cool
+that this just works with `einsum` without explict transposes even though matmul
+is not commutative (not sure if there's any difference in the low-level order of operations or efficiency):
+
+```python
+>>> einsum(W,x, "d_out d_in, num_objects d_in -> num_objects d_out")            
+tensor([[12, 26, 25]])
+```
+
 If we wanted to get a column vector as result, we can just swap the output dimensions of the `einsum`:
 
 ```python
@@ -167,4 +176,15 @@ You should use `torch.nn.init.trunc_normal_` to initialize the truncated normal 
 In this part, I implement a linear module based on `nn.Module` to compute y = Wx, to mirror the standard [`nn.Linear`](https://docs.pytorch.org/docs/stable/generated/torch.nn.modules.linear.Linear.html).
 
 *Note*: Note that we do not include a bias term (i.e. b is conceptually 0 in y = Wx + b), following most modern LLMs.
+
+> Make sure to:
+>
+> - subclass `nn.Module`
+> - call the superclass constructor
+> - construct and store your parameter as W (not W.T) for memory ordering reasons, putting it in an `nn.Parameter`
+> - of course,don’t use `nn.Linear` or `nn.functional.linear`
+
+Storing our weights as `W` instead of `W.T` essentially means using a tensor of shape `(d_out, d_in)` to store the matrix.
+
+I've implemented the custom `Linear` module in the [`nn_modules.py`](./nn_modules.py) file.
 
