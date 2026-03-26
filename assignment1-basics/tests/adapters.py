@@ -33,7 +33,7 @@ def run_linear(
     """
     linear = Linear(d_in, d_out)
     linear.load_state_dict({"weights": weights})
-    raise linear(in_features)
+    return linear(in_features)
 
 
 def run_embedding(

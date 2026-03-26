@@ -198,16 +198,16 @@ Then run test as
 uv run pytest -k test_linear
 ```
 
-Note running test fails with import error, could this be a windows issue?:
-
 ```sh
-ImportError while importing test module 'C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch\assignment1-basics\tests\test_tokenizer.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-..\..\..\..\..\AppData\Roaming\uv\python\cpython-3.11.13-windows-x86_64-none\Lib\importlib\__init__.py:126: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-tests\test_tokenizer.py:5: in <module>
-    import resource
-E   ModuleNotFoundError: No module named 'resource'
+uv run pytest -k test_linear     
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.11.12, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.2
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_linear PASSED
+
+================================================================= 1 passed, 47 deselected in 0.84s ==================================================================
 ```
