@@ -130,18 +130,23 @@ Note that this is the same result as the previous one, but transposed, i.e. `x @
 We can achieve the row-major result using `einsum` without explicit transpose:
 
 ```python
->>> einsum(x, W, "num_objects d_in, d_out d_in -> num_objects d_out")
+>>> einsum(x, W, "batch_size d_in, d_out d_in -> batch_size d_out")
 tensor([[12, 26, 25]])
 ```
 
 If we wanted to get a column vector as result, we can just swap the output dimensions of the `einsum`:
 
 ```python
-einsum(x, W, "num_objects d_in, d_out d_in -> d_out num_objects")
+einsum(x, W, "batch_size d_in, d_out d_in -> d_out batch_size")
 tensor([[12],
         [26],
         [25]])
 ```
+
+We'll use the row major approach in computations as it's more common in deep learning. But more importantly,
+it keeps the batch size (and other dimensions that should not be summed over) in the leading dimensions
+with preserves batch semantics, and most pytorch nn operations expect the batch size as the leading dimension.
+The row major form is also aligned with PyTorch's default memory order, deep learning kernels, etc. SIMD/CUDA, etc.
 
 ## 3.4 Basic Building Blocks: Linear and Embedding modules
 
