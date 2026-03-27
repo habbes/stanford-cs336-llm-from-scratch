@@ -36,8 +36,8 @@ class Embedding(nn.Module):
             device (torch.device|None): Device to store the parameters on
             dtype (torch.dtype|None): Data type of the parameters
         """
-        self.embeddings = nn.Parameter(torch.zeros((num_embeddings, embedding_dim), dtype=dtype, device=device))
-        torch.nn.init.trunc_normal_(self.embeddings, mean=0, std=1, a=-3, b=3)
+        self.weights = nn.Parameter(torch.zeros((num_embeddings, embedding_dim), dtype=dtype, device=device))
+        torch.nn.init.trunc_normal_(self.weights, mean=0, std=1, a=-3, b=3)
     
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
         """
@@ -46,4 +46,4 @@ class Embedding(nn.Module):
         Args:
             token_ids (torch.Tensor): The batch of input token id sequences, a tensor of shape (batch_size, sequence_length)
         """
-        return self.embeddings[token_ids]
+        return self.weights[token_ids]

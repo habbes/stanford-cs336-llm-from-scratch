@@ -244,6 +244,8 @@ ERROR assignment1-basics/tests/test_tokenizer.py
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ```
 
+**TODO**: Test whether the initialization adheres to desired distribution and constraints.
+
 ### 3.4.3 Embedding module
 
 The embedding layer maps integer token IDs into a vector space of dimension `d_model`, where `d_model` conceptually represents the number of features that represent a token i.e.
@@ -351,3 +353,15 @@ Additional implementation instructions:
 > Again, use the settings from above for initialization, and use `torch.nn.init.trunc_normal_` to initialize the weights.
 
 I've implemented the `Embedding` module class in [`nn_modules.py`](./nn_modules.py).
+
+I've implemented the `run_embedding` function in [`tests/adapters.py`](../tests/adapters.py) to support testing.
+
+To run official unit tests, run:
+
+```sh
+uv run pytest -k test_embedding
+```
+
+**TODO**: Run unit tests
+
+**TODO**: Test whether the initialization adheres to desired distribution and constraints.
