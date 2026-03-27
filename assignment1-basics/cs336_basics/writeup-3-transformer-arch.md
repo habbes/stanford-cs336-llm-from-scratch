@@ -349,3 +349,5 @@ Additional implementation instructions:
 > - store the embedding matrix with the `d_model` being the final dimension
 > - of course, don’t use `nn.Embedding` or `nn.functional.embedding`
 > Again, use the settings from above for initialization, and use `torch.nn.init.trunc_normal_` to initialize the weights.
+
+I've implemented the `Embedding` module class in [`nn_modules.py`](./nn_modules.py).
