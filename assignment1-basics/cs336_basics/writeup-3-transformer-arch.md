@@ -166,7 +166,7 @@ The row major form is also aligned with PyTorch's default memory order, deep lea
 > Since this assignment is already long, we will save the details for assignment 3, and instead give you some approximate initializations that should work well for most cases. For now, use:
 
 - Linear Weights: `NormalDistribution(mean = 0, variance = 2 / (d_in + d_out))` truncated at [-3stddev, 3stddev]
-- Embedding: `NormalDistricution(mean = 0, variance = 1) truncated at [-3, 3]
+- Embedding: `NormalDistribution(mean = 0, variance = 1) truncated at [-3, 3]
 - RMSNorm: 1
 
 You should use `torch.nn.init.trunc_normal_` to initialize the truncated normal weights
@@ -242,4 +242,110 @@ assignment1-basics\tests\adapters.py:294
 ============================================================================================================= short test summary info ============================================================================================================== 
 ERROR assignment1-basics/tests/test_tokenizer.py
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-``` 
+```
+
+### 3.4.3 Embedding module
+
+The embedding layer maps integer token IDs into a vector space of dimension `d_model`, where `d_model` conceptually represents the number of features that represent a token i.e.
+An embedding vector will be learned for each unique token id. The embedding module will hold these embedding vectors into a tensor of size `(vocab_size, d_model)` where
+`vocab_size` is the number of unique token IDs in our vocabulary.
+
+The input to the embedding module is a batched sequence of tokens, i.e. each item in a batch is a sequence of token ids, hence the input tensor has shape `(batch_size, sequence_length)`.
+The sequence length is basically the context window, how many tokens do we have to look back to in order to predict the next token.
+
+Given this input, the embedding module returns the corresponding embedding vector for each input token. I.e., for each input token in each token sequence in the batch, index into
+the embedding matrix and return te corresponding embedding vector. Hence the output of the embedding module will be a tensor of shape `(batch_size, sequence_length, d_model)`.
+
+For example, let's say we have a vocabulary of size 3 with token Ids: `vocab = [0, 1, 2]`. Let `d_model = 2`, and we have the following embedding matrix:
+
+```python
+[
+   [0.1, 0.5],
+   [0.24, -1.45],
+   [0.51, -2.3]
+]
+```
+
+This means we have the following token ID to embedding vector mapping:
+
+- 0 -> [0.1, 0.5]
+- 1 -> [0.24, -1.45]
+- 2 -> [0.51, -2.3]
+
+Now let's say we have the following batch of inputs sequences `x`, with shape `(batch_size = 2, sequence_length = 4)`:
+
+```python
+batch =
+[
+   [0, 2, 1, 1],
+   [1, 0, 2, 1]
+]
+```
+
+Then the output of the embedding layer will be the following tensor of shape `(batch_size = 2, sequence_length = 4, d_model = 2)`
+
+```python
+[
+    [
+        [0.1, 0.5], [0.51, -2.3], [0.1, 0.5], [0.1, 0.5]
+    ],
+    [
+        [0.24, -1.45], [0.1, 0.5], [0.51, -2.3], [0.24, -1.45]
+    ]
+]
+```
+
+Conveniently, PyTorch allows you to index a tensor using a collection of indices to retreive query items at the same time.
+Like in the following example we use the `indices` collection to query the `x` tensor, which returns an output tensor
+based on the specified indices:
+
+```python
+>>> x = torch.tensor([1,2,3,4,5,6])
+>>> indices = [0, 5, 5, 4]
+>>> x[indices]
+tensor([1, 6, 6, 5])
+```
+
+And "batch indices" just work out of the box thanks to PyTorch broadcasting. In the following example we a `double` tensor
+which is a sequence of even numbers starting at 0. Then we we give at a `(2, 3)` batch of index sequences (batch size = 2, sequence length = 3).
+This returns a `(2, 3)` tensor of doubles corresponding to the input indices:
+
+```python
+>>> doubles = torch.tensor([0, 2, 4, 6, 8, 10])       
+>>> batched_indices = torch.tensor([[1, 4, 3], [2, 3, 5]])
+>>> doubles[batched_indices]
+tensor([[ 2,  8,  6],
+        [ 4,  6, 10]])
+```
+
+Well will this also work if the tensor we're indexing into has multiple dimensions? Yes it does! Instead of the 1-dimensional `doubles` vector,
+let's use a `doubles_and_triples` tensor where each element is a 2-item vector containing both the double and triple of the corresponding index.
+So we have `batched_indices` of shape (2,3) and `doubles_and_triples` of shape `(10, 2)` and the result is a tensor of shape `(2, 3, 2)`:
+
+```python
+>>> doubles_and_triples = torch.tensor([[0, 0], [2, 3], [4, 6], [6, 9], [8, 12], [10, 15]])
+>>> batched_indices = torch.tensor([[1, 4, 3], [2, 3, 5]])
+>>> doubles_and_triples[batched_indices]
+tensor([[[ 2,  3],
+         [ 8, 12],
+         [ 6,  9]],
+
+        [[ 4,  6],
+         [ 6,  9],
+         [10, 15]]])
+```
+
+This means we can simply implement the embedding module by indexing the embeddings matrix using the input batch: `output = embedding[input_batch]`
+
+Like mentioned earlier, we'll initialize the embedding weights using `N(mean = 0, variance = 1)` truncated at `[-3, 3]`
+
+Additional implementation instructions:
+
+> Make sure to:
+>
+> - subclass `nn.Module`
+> - call the superclass constructor
+> - initialize your embedding matrix as a `nn.Parameter`
+> - store the embedding matrix with the `d_model` being the final dimension
+> - of course, don’t use `nn.Embedding` or `nn.functional.embedding`
+> Again, use the settings from above for initialization, and use `torch.nn.init.trunc_normal_` to initialize the weights.
