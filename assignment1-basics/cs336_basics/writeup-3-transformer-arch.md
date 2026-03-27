@@ -211,3 +211,35 @@ tests/test_model.py::test_linear PASSED
 
 ================================================================= 1 passed, 47 deselected in 0.84s ==================================================================
 ```
+
+Got an error running the test on Windows though:
+
+```sh
+uv run pytest -k test_linear
+=============================================================================================================== test session starts ================================================================================================================
+platform win32 -- Python 3.11.13, pytest-8.4.1, pluggy-1.6.0
+rootdir: C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch
+plugins: jaxtyping-0.3.2
+collected 23 items / 1 error / 22 deselected / 1 selected                                                                                                                                                                                           
+
+====================================================================================================================== ERRORS ======================================================================================================================
+___________________________________________________________________________________________ ERROR collecting assignment1-basics/tests/test_tokenizer.py ____________________________________________________________________________________________ 
+ImportError while importing test module 'C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch\assignment1-basics\tests\test_tokenizer.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\..\AppData\Roaming\uv\python\cpython-3.11.13-windows-x86_64-none\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+assignment1-basics\tests\test_tokenizer.py:5: in <module>
+    import resource
+E   ModuleNotFoundError: No module named 'resource'
+================================================================================================================= warnings summary ================================================================================================================= 
+assignment1-basics\tests\adapters.py:294
+  C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch\assignment1-basics\tests\adapters.py:294: DeprecationWarning: invalid escape sequence '\T'
+    """Given the weights of a Transformer language model and input indices,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================================================================================================= short test summary info ============================================================================================================== 
+ERROR assignment1-basics/tests/test_tokenizer.py
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+``` 
