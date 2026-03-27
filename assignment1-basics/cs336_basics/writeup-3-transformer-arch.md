@@ -362,6 +362,30 @@ To run official unit tests, run:
 uv run pytest -k test_embedding
 ```
 
-**TODO**: Run unit tests
+Got the following error
+
+```
+====================================================================== short test summary info ======================================================================
+FAILED tests/test_model.py::test_embedding - AttributeError: cannot assign parameters before Module.__init__() call
+============================================================ 1 failed, 47 deselected, 1 warning in 0.19s ============================================================
+```
+
+I think the issue is that I did not call `super().__init__()` in the `Embedding` constructor.
+
+Yep, that was the issue, now the test passes:
+
+```sh
+uv run pytest -k test_embedding
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.11.12, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.2
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_embedding PASSED
+
+================================================================= 1 passed, 47 deselected in 0.05s ==================================================================
+```
 
 **TODO**: Test whether the initialization adheres to desired distribution and constraints.

@@ -36,6 +36,7 @@ class Embedding(nn.Module):
             device (torch.device|None): Device to store the parameters on
             dtype (torch.dtype|None): Data type of the parameters
         """
+        super().__init__()
         self.weights = nn.Parameter(torch.zeros((num_embeddings, embedding_dim), dtype=dtype, device=device))
         torch.nn.init.trunc_normal_(self.weights, mean=0, std=1, a=-3, b=3)
     
