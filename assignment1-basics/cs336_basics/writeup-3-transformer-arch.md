@@ -416,4 +416,30 @@ tests/test_model.py::test_embedding PASSED
 ================================================================= 1 passed, 47 deselected in 0.05s ==================================================================
 ```
 
-**TODO**: Test whether the initialization adheres to desired distribution and constraints.
+Let's verify that the weights are properly initialized based on the expected distribution.
+
+```python
+>>> e = Embedding(1000, 500)
+>>> e.weights.mean()
+tensor(5.3624e-06, grad_fn=<MeanBackward0>)
+>>> e.weights.std()
+tensor(0.9872, grad_fn=<StdBackward0>)
+>>> e.weights.max()
+tensor(2.9999, grad_fn=<MaxBackward1>)
+>>> e.weights.min()
+tensor(-2.9996, grad_fn=<MinBackward1>)
+```
+
+This seems reasonable. Let me add a test for this in [`playground.py`](./playground.py)
+under the function `test_embedding_module_initialization`
+
+```sh
+uv run python -m cs336_basics.playground
+```
+
+```sh
+...
+SCENARIO: Verify Embedding module weights are initialized with expected distribution
+Test passed!
+```
+

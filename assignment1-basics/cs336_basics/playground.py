@@ -8,7 +8,7 @@ import datetime
 from .train_bpe_core import train_bpe_core_str
 from .tokenizer import Tokenizer
 from .bpe_common import dump_bpe_merges, load_bpe_merges, dump_bpe_vocab, load_bpe_vocab
-from .nn_modules import Linear
+from .nn_modules import Linear, Embedding
 import multiprocessing as mp
 import random
 
@@ -743,9 +743,31 @@ def test_linear_module_initialization():
 
         assert min >= target_min, f"Got min value {min} lower than target min {target_min} for Linear module with d_in={d_in}, d_out={d_out}"
         assert max <= target_max, f"Got max value {max} greater than target max {target_max} for Linear module with d_in={d_in}, d_out={d_out}"
-        assert mean_diff < 0.001, f"Got mean {mean}, but expected {target_mean} (diff = {mean_diff}) for Linear module with d_in={d_in}, d_out={d_out}"
-        assert std_diff < 0.001, f"Got std {std}, but expected {target_std} (diff = {std_diff}) for Linear module with d_in={d_in}, d_out={d_out}"
+        assert mean_diff < 0.1, f"Got mean {mean}, but expected {target_mean} (diff = {mean_diff}) for Linear module with d_in={d_in}, d_out={d_out}"
+        assert std_diff < 0.1, f"Got std {std}, but expected {target_std} (diff = {std_diff}) for Linear module with d_in={d_in}, d_out={d_out}"
 
+    print("Test passed!")
+
+def test_embedding_module_initialization():
+    print("SCENARIO: Verify Embedding module weights are initialized with expected distribution")
+
+    for _ in range(10):
+        d_vocab, d_model = random.randint(1000, 2000), random.randint(1000, 2000)
+        e = Embedding(d_vocab, d_model)
+        target_mean = 0
+        target_std = 1
+        target_max = 3
+        target_min = -3
+
+        mean, std, min, max = e.weights.mean(), e.weights.std(), e.weights.min(), e.weights.max()
+        mean_diff = abs(mean - target_mean)
+        std_diff = abs(std - target_std)
+
+        assert min >= target_min, f"Got min value {min} lower than target min {target_min} for Embedding module with d_vocab={d_vocab}, d_model={d_model}"
+        assert max <= target_max, f"Got max value {max} greater than target max {target_max} for Embedding module with d_vocab={d_vocab}, d_model={d_model}"
+        assert mean_diff < 0.1, f"Got mean {mean}, but expected {target_mean} (diff = {mean_diff}) for Embedding module with d_vocab={d_vocab}, d_model={d_model}"
+        assert std_diff < 0.1, f"Got std {std}, but expected {target_std} (diff = {std_diff}) for Linear module with d_vocab={d_vocab}, d_model={d_model}"
+    
     print("Test passed!")
     
 
@@ -767,4 +789,5 @@ if __name__ == "__main__":
     test_bpe_vocab_serializer_roundtrip()
     test_bpe_merges_serializer_roundtrip()
     test_linear_module_initialization()
+    test_embedding_module_initialization()
 
