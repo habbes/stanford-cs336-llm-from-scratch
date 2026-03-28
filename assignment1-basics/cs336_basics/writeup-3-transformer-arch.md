@@ -189,10 +189,9 @@ Storing our weights as `W` instead of `W.T` essentially means using a tensor of 
 I've implemented the custom `Linear` module in the [`nn_modules.py`](./nn_modules.py) file.
 
 To test this, first I update the `run_linear` function in [`../tests/adapters.py`](../tests/adapters.py) to call
-initialize and call my custom `Linear` class. Note that it loads weights provided by the tests and not the model's
-randomly initialized weights.
+initialize and call my custom `Linear` class.
 
-Then run test as
+Then run test as:
 
 ```sh
 uv run pytest -k test_linear
@@ -215,13 +214,6 @@ tests/test_model.py::test_linear PASSED
 Got an error running the test on Windows though:
 
 ```sh
-uv run pytest -k test_linear
-=============================================================================================================== test session starts ================================================================================================================
-platform win32 -- Python 3.11.13, pytest-8.4.1, pluggy-1.6.0
-rootdir: C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch
-plugins: jaxtyping-0.3.2
-collected 23 items / 1 error / 22 deselected / 1 selected                                                                                                                                                                                           
-
 ====================================================================================================================== ERRORS ======================================================================================================================
 ___________________________________________________________________________________________ ERROR collecting assignment1-basics/tests/test_tokenizer.py ____________________________________________________________________________________________ 
 ImportError while importing test module 'C:\Users\clhabins\source\repos\learn\stanford-cs336-llm-from-scratch\assignment1-basics\tests\test_tokenizer.py'.
@@ -244,7 +236,43 @@ ERROR assignment1-basics/tests/test_tokenizer.py
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ```
 
-**TODO**: Test whether the initialization adheres to desired distribution and constraints.
+Note that while the test passes (at least on *nix systems), it loads weights provided by the tests and not the model's
+randomly initialized weights. So it doesn't test whether initialization logic is correctly implemented. I did stumble
+on a bug in my initialization code when randomly looking at the code, so I want to write a test for that as well.
+
+I'll basically create a new instance of the module and check that the weights are within the desired bounds and that
+the mean and std/variance are close enough to what we expect, i.e.:
+
+```python
+>>> d_in, d_out = 1000, 500
+>>> l = Linear(d_in, d_out)
+>>> target_std = math.sqrt(2/(d_in + d_out))
+>>> target_std
+0.03651483716701107
+>>> l.weights.std()
+tensor(0.0360, grad_fn=<StdBackward0>)
+>>> l.weights.mean()
+tensor(-8.9683e-06, grad_fn=<MeanBackward0>)
+>>> target_min, target_max = -3 * target_std, 3 * target_std
+>>> target_min, target_max
+(-0.10954451150103323, 0.10954451150103323)
+>>> l.weights.min(), l.weights.max()
+(tensor(-0.1095, grad_fn=<MinBackward1>), tensor(0.1095, grad_fn=<MaxBackward1>))
+```
+The values seem to be within reasonable bounds of the expected constraints.
+
+I've created a test for this in the [`playground.py`](./playground.py) file under the `test_linear_module_initialization()`
+function:
+
+```sh
+uv run -m cs336_basics.playground
+```
+
+```sh
+...
+SCENARIO: Verify Linear module weights are initialized with expected distribution
+Test passed!
+```
 
 ### 3.4.3 Embedding module
 
