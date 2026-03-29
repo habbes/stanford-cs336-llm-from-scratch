@@ -4,6 +4,11 @@ Related papers:
 
 - [Improving Language Understanding by Generative Pretraing, Radford et al 2018](https://cdn.openai.com/research-covers/language-unsupervised/language_understanding_paper.pdf)
 
+This is the architecture we're going to implement (this differs from the original Transformer paper. Various sections will explain how and why we deviate from the original)
+
+![Our transformer architecture](our-transformer-architecture.png)
+
+
 ## 3.3 Remark: Batching, Einsum and Efficient Computation
 
 Einsum notation, inspired by Einstein sums, is a more readable and ergonomic way of working tensor dimensions.
@@ -442,4 +447,125 @@ uv run python -m cs336_basics.playground
 SCENARIO: Verify Embedding module weights are initialized with expected distribution
 Test passed!
 ```
+
+## 3.5 Pre-Norm Transformer block
+
+Normalization is a technique for rescaling the weights of network during training to have predictable, stable range of values.
+Instead of letting the values grow arbitrarily large or small, they are rescaled to have a stable mean and variance.
+
+This helps address issues like vanishing gradients, which slow down gradient descent and learning. Also, during
+training, the distribution of a layer keeps changing after applying the activations of the previous layer. As a
+result, the model constantly has to "re-learn" to handle new input scales (this is called **internal covariate shift**).
+
+Generally, normalization makes gradient descent and therefore learning easier, faster and more stable.
+
+In the original Transfomer paper, each transformer block has two-sublayers: multi-head self-attention and position-wise feedfoward network.
+There's a residual connection around each sublayer followed by layer normalization.
+
+![Original transformer architecture](original-transformer-architecture.png)
+
+This architecture is called **post-norm** since the layer norm is applied to the output of each sublayer. But recent
+work has shown that applying normalization before the sublayers improves training stability. This is called "**pre-norm**".
+The pre-norm transfomer is now the standard used in modern language models (e.g. GPT-3, LLaMA, PaLM, etc.). That's
+what we'll use in this project.
+
+![Pre-norm in transformer block](prenorm-transformer-block)
+
+An intuition for pre-norm is that there is a clean “residual stream” without any normalization going from the input embeddings to the final output of the Transformer,
+which is purported to improve gradient flow.
+
+Related papers:
+- [Batch Normalization: Accelerating deep network training by reducing internal covariate shift, 2015, Ioffe and Szegedy](Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift)
+- [Layer Normalization, 2016, Ba et al (Introduces layer normalization as a better alternative to batch norm)](https://arxiv.org/abs/1607.06450)
+- [Attention is all you need, 2017, Vaswani et al (OG Transformer architecture)](https://arxiv.org/abs/1706.03762)
+- [Transformers without tears: Improving the normalization of self attention, 2019, Nguyen and Salazar](https://arxiv.org/abs/1910.05895)
+- [On layer normalization in Transformer architecture, 2020, Xiong et al](https://arxiv.org/abs/2002.04745)
+
+### 3.5.1 Root Mean Square Layer normalization
+
+We're going to use `RMSNorm` activation:
+Given a vector `a` with size `d_model` of activations, `RMSNorm` will rescale each activation `a[i]` as follows:
+
+```
+RMSNorm(a[i]) := (a[i] / RMS(a)) * g[i]
+```
+
+Where:
+
+```python
+RMS(a) := sqrt((1/d_model) * sum(i in 0..d_model: a[i]**2 + eps) )
+```
+
+Where `g[i]` is a learnable "gain" parameter (there `d_model` such parameters), and `eps` is
+a hyperparameter that's often fixed to 1e-5.
+
+The project instructions don't specify how to initialize the `g` vector, but the RMSNorm paper
+provides a background of LayerNorm in chapter 3 and states that `g` is set to 1 at the beginning.
+
+Related papers:
+- [Root Mean Square Layer Normalization, 2019, Zhand and Sennrich (Introduces RMSNorm as an alternative to LayerNorm)](https://arxiv.org/abs/1910.07467)
+- [LLaMA: Open and Efficient Foundation Language Models, 2023, Touvron et al (LLaMA uses pre-norm based on RMSNorm)](https://arxiv.org/abs/2302.13971)
+
+**Note**: You should upcast your input to `torch.float32` to prevent overflow when you square the input. Overall,
+your forward method should look like:
+
+```python
+in_dtype = x.dtype
+x = x.to(torch.float32)
+# Your code here performing RMSNorm
+...
+result = ...
+# Return the result in the original dtype
+return result.to(in_dtype)
+```
+
+I've implemented the `RMSNorm` module in [`nn_modules.py`](./nn_modules.py).
+
+Note that I played around with dimensions using `einops` to ensure the aggregations
+were applied to each sample in the batch indepedently. For example, the sum of squares
+should be applied independently to each sample in the batch, i.e. whereas the
+input is `(batch_size, d_model)` the output of the sum squares should be `(batch_size, 1)`
+such that there's a separate sum of squares for each item in the batch. The sqrt and
+additions/mulitiplications by scalars are all element-wise, so no issue there.
+
+So the RMS part should be `(batch_size, 1)`, and when it divides the input x, which is `(batch_size, d_model)`
+Then for each sample in the batch, the activations in that sample will be divided by the corresponding
+rms of that batch item. What definitely want to avoid having the same rms divide all elements input tensor
+regardless of batch item. The output of this operation is `(batch_size, d_model)`.
+
+Finally, when `(batch_size, d_model)` is multiplied by the vector g `(d_model,)`, then standard
+PyTorch broadcasting applies since the last dimensions are the same. So it will do
+position-wise multiplication per batch sample.
+
+I've implemented the `run_rmsnorm` test adapter in [`tests/adapters.py`](../tests/adapters.py).
+
+To run the test:
+
+```sh
+uv run pytest -k test_rmsnorm
+```
+
+Tests pass:
+
+```
+uv run pytest -k test_rmsnorm
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.11.12, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.2
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_rmsnorm PASSED
+
+========================================================================= warnings summary ==========================================================================
+tests/adapters.py:295
+  /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics/tests/adapters.py:295: DeprecationWarning: invalid escape sequence '\T'
+    """Given the weights of a Transformer language model and input indices,
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================================================ 1 passed, 47 deselected, 1 warning in 0.56s ============================================================
+```
+
+
 

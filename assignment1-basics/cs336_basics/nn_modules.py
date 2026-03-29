@@ -1,7 +1,7 @@
 import torch
 import math
 from torch import nn
-from einops import einsum
+from einops import einsum, rearrange
 
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device:torch.device = None, dtype: torch.dtype = None):
@@ -48,3 +48,34 @@ class Embedding(nn.Module):
             token_ids (torch.Tensor): The batch of input token id sequences, a tensor of shape (batch_size, sequence_length)
         """
         return self.weights[token_ids]
+
+class RMSNorm(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5, device: torch.device|None = None, dtype: torch.dtype|None = None):
+        """
+        Constructs an RMSNorm module which computes the Root Mean Square normalization based on https://arxiv.org/abs/1910.07467.
+        RMSNorm(a[i]) := (a[i] / RMS(a)) * g[i]
+
+        Where: 
+        RMS(a) := sqrt((1/d_model) * sum(i in 0..d_model: a[i]**2 + eps) )
+
+        d_model (int): Hidden dimension of the model.
+        eps (float): Epsilon value for numeric stability
+        device (torch.device | None): Device to store the parameters on
+        dtype: (torch.dtype | None): Data type of the parameter
+        """
+        super().__init__()
+        self.d_model = d_model
+        self.eps = eps
+        self.g = nn.Parameter(torch.ones(d_model, dtype=dtype, device=device))
+    
+    def forward(self, x: torch.tensor):
+        in_dtype = x.dtype
+        x = x.to(torch.float32) # Upcast to avoid overflow when computing squares
+        # x is (batch_size, d_model)
+        assert x.shape[-1] == self.d_model
+        rms = torch.sqrt((einsum(x ** 2 + self.eps, "... d_model -> ...") / self.d_model)) # rms -> (batch_size,)
+        rms = rearrange(rms, "... -> ... 1") # rearrange to (batch_size, 1) so broadcasting works when dividing (batch_size, d_model) below
+        result = (x / rms) * self.g # -> (batch_size, d_model)
+        # restore original data type
+        return result.to(in_dtype)
+
