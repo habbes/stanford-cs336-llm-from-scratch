@@ -652,4 +652,12 @@ tests/test_model.py::test_swiglu PASSED
 ================================================================= 1 passed, 47 deselected in 0.47s ==================================================================
 ```
 
+Related papers:
 
+- [Gaussian Error Linear Units (GELUs), 2016, Hendrycks and Gimpel](https://arxiv.org/abs/1606.08415)
+- [Sigmoid-Weighted Linear Units for Neural Network Function Approximation and Reinforcement Learning, 2017, Elfwing et al, (proposes SiLU)](https://arxiv.org/abs/1702.03118)
+- [Language Modeling with Gated Convolution Networks, 2017, Dauphin et al (introduces GLU)](https://arxiv.org/abs/1612.08083)
+- [GLU Variants Improve Transformer, 2020, Shazeer](https://arxiv.org/abs/2002.05202)
+- [PaLM: Scaling language modelling with Pathways](https://arxiv.org/abs/2204.02311)
+- [The Llama 3 Herd of Models, 2024, Grattafiori et al](https://arxiv.org/abs/2407.21783)
+- [Qwen 2.5 Technical Report, 2024, Yang et al](https://arxiv.org/abs/2412.15115)
