@@ -79,3 +79,31 @@ class RMSNorm(nn.Module):
         # restore original data type
         return result.to(in_dtype)
 
+class FFSwiGLU(nn.Module):
+    def __init__(self, d_model: int, d_ff: int|None = None, device: torch.device = None, dtype: torch.dtype|None = None):
+        """
+        Constructs a position-wise feed-forward network with SwiGLU activation:
+
+        FFN(x) = SwiGLU(x, W1, W2, W3) = W2(SiLU(W1x) ⊙ W3x), 
+
+        d_model (int): Dimensionality dimension of the model.
+        d_ff (int): Dimentionality of the feedfoward network
+        device (torch.device | None): Device to store the parameters on
+        dtype: (torch.dtype | None): Data type of the parameter
+        """
+
+        super().__init__()
+        # Dimensionality of feedfoward network, make sure it's a multiple of 64
+        self.d_ff = d_ff if d_ff is not None else math.ceil((d_model * 8/3) / 64) * 64
+        self.W1 = Linear(in_features=d_model, out_features=self.d_ff, device=device, dtype=dtype)
+        self.W2 = Linear(in_features=self.d_ff, out_features=d_model, device=device, dtype=dtype)
+        self.W3 = Linear(in_features=d_model, out_features=self.d_ff, device=device, dtype=dtype)
+    
+    def forward(self, x:torch.tensor):
+        # SiLU = x * sigmoid(x)
+        w1_x = self.W1(x)
+        w3_x = self.W3(x)
+        y = w1_x * torch.sigmoid(w1_x)
+        y = y * w3_x
+        y = self.W2(y)
+        return y

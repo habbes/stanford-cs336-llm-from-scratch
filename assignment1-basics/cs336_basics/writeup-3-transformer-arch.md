@@ -567,5 +567,89 @@ tests/adapters.py:295
 ============================================================ 1 passed, 47 deselected, 1 warning in 0.56s ============================================================
 ```
 
+### 3.5.2 Position-Wise Feedforward Network
+
+In the original Transformer paper, the feed-forward network consists of two linear transformations with ReLU between them.
+The dimensionality of the inner feed-forward layer is typically 4x the input dimensionality.
+
+Modern LLMs tend to incorporate 2 design changes:
+- they use a different activation function
+- employ a gating mechanism
+
+We'll use the **SwiGLU** activation function, which combines **SiLU** (also called Swish) activation
+with a "gating mechanism" called **Gated Linear Unit (GLU)**. We will also omit the bias terms sometimes used in linear layers,
+following most modern LLMs since PaLM [Chowdhery et al., 2022] and LLaMA [Touvron et al., 2023].
+
+```
+SiLU(x) = x * sigmoid(x) = x / (1 + e**-x)
+```
+
+Geometrically, SiLU looks like ReLU but has a smooth curve at x=0, which makes it continous and differentiable,
+unlike ReLU which is not continuous, and therefore not differentiable, at x=0.
+
+![alt text](SiLU-and-ReLU-activation-functions.png)
+
+GLUs were originally defined as the element-wise product of a linear transformation passed through
+a sigmoid function and another transformation:
+
+```
+GLU(x, W1, W2) = sigmoid(W1x) * W2x
+```
+
+GLUs are suggested to "reduce the vanishing gradient problem for deep architectures by
+providing a linear path for the gradients while retaining non-linear capabilities".
+
+Putting SiLU and GLU together, we get the SwiGLU, which we will use for our feed-forward network
+
+```
+FFN(x) = SwiGLU(x, W1, W2, W3) = W2(SiLU(W1x)) * W3x)
+```
+
+
+Shazeer [2020] first proposed combining the SiLU/Swish activation with GLUs and conducted experiments
+showing that SwiGLU outperforms baselines like ReLU and SiLU (without gating) on language modeling
+tasks. Though we’ve mentioned some heuristic
+arguments for these components (and the papers provide more supporting evidence), it’s good to keep an
+empirical perspective: a now famous quote from Shazeer’s paper is
+
+> We offer no explanation as to why these architectures seem to work; we attribute their success,
+> as all else, to divine benevolence.
+
+
+I should implement the SwiGLU feed-forward network
+
+**Note**: in this particular case, you should feel free to use `torch.sigmoid` in your implementation
+for numerical stability.
+
+You should set dff to approximately (8/3) × d_model in your implementation, 
+while ensuring that the dimensionality of the inner feed-forward layer is a multiple of 64 to make good use of your
+hardware.
+
+I've implemented SwiGLU as the module `FFSwiGLU` in [`nn_modules.py`](./nn_modules.py). I used
+the existing `Linear` module I implemented earlier for the linear layers.
+
+For testing, I implemented the `run_swiglu` function in [`tests/adapters.py`](../tests/adapters.py).
+
+To run the test:
+
+```sh
+uv run pytest -k test_swiglu
+```
+
+Tests passed:
+
+```sh
+uv run pytest -k test_swiglu
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.11.12, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.2
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_swiglu PASSED
+
+================================================================= 1 passed, 47 deselected in 0.47s ==================================================================
+```
 
 
