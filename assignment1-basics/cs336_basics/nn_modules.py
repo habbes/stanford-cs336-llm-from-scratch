@@ -136,8 +136,8 @@ class RotaryPositionalEmbedding(nn.Module):
         # where k is in range [1, d/2] and pos is the token position
         # which means (2k-2) goes from 0, 2, 6, ..., d-2
         assert d_k % 2 == 0, f"The d_k parameter representing query vector dimensions should be an even number, but got {d_k}"
-        positions = rearrange(torch.arange(max_seq_len), "... -> ... 1")
-        k = torch.arange(1, d_k / 2 + 1)
+        positions = rearrange(torch.arange(max_seq_len, device=device), "... -> ... 1")
+        k = torch.arange(1, d_k / 2 + 1, device=device)
         denom = theta ** ((2 * k - 2) / d_k)
 
         assert denom.shape == (d_k / 2,)
@@ -184,13 +184,13 @@ class RotaryPositionalEmbedding(nn.Module):
         # - sines at the bottom-left are at indices [1,0], [3,2], [5,4], etc., i.e. [odd_idx, even_idx]
         # - cosines at the bottom-right are at indices [1,1], [3,3], [5,5],e etc., i.e. [odd_idx, odd_idx]
 
-        even_idx = torch.arange(0, d_k, 2).to(torch.int)
-        odd_idx = torch.arange(1, d_k, 2).to(torch.int)
+        even_idx = torch.arange(0, d_k, 2, device=device, dtype=torch.int)
+        odd_idx = torch.arange(1, d_k, 2, device=device, dtype=torch.int)
 
         assert even_idx.shape == (d_k / 2,)
         assert odd_idx.shape == (d_k / 2,)
 
-        rotation_matrix = torch.zeros((max_seq_len, d_k, d_k))
+        rotation_matrix = torch.zeros((max_seq_len, d_k, d_k), device=device)
         rotation_matrix[:, even_idx, even_idx] = cosines
         rotation_matrix[:, even_idx, odd_idx] = -sines
         rotation_matrix[:, odd_idx, even_idx] = sines
