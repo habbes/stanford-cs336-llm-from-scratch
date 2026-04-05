@@ -2,6 +2,7 @@ import torch
 import math
 from torch import nn
 from einops import einsum, rearrange, repeat
+from jaxtyping import Bool, Float, Int
 
 def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     """
@@ -21,6 +22,33 @@ def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     exps = torch.exp(x - maxes)
     sum_exps = torch.sum(exps, dim=dim, keepdim=True)
     return exps / sum_exps
+
+def scaled_dot_product_attention(queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
+    """
+    Performs scaled dot-product attention
+
+    softmax(Q @ K.T / sqrt(d_k)) @ V
+
+    Args:
+        queries (torch.Tensor): Batch of query matrices Q. Shape = (batch_size, ..., n, d_k)
+        keys    (torch.Tensor): Batch of key matrices K. Shape = (batch_size, ..., m, d_k)
+        values  (torch.Tensor): Batch of value matrics V. Shape = (batch_size, ..., m, d_v)
+        mask     (torch.Tensor|None): Optional boolean mask to prevent specific queries from attending to specific keys.
+            If mask[i, j] is True, then query i should attend to key j, otherwise it should not (i.e. the weight associated with query and k should be 0).
+    
+    Returns:
+        Tensor of shape (batch_size, ..., n, d_v)
+    """
+    dot_product = einsum(queries, keys, "batch_size ... n d_k, batch_size ... m d_k -> batch_size ... n m")
+    scaled_dot_product = dot_product / math.sqrt(queries.shape[-1])
+    if mask is not None:
+        # Set locations we don't want to mask out to -inf
+        # because exp(inf) == 0, so the corresponding query, key and value will not contribute to the attention.
+        scaled_dot_product[~mask] = -torch.inf
+    weights = softmax(scaled_dot_product, dim=-1)
+    result = einsum(weights, values, "batch_size ... n m, batch_size ... m d_v -> batch_size ... n d_v")
+    return result
+
 
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device:torch.device = None, dtype: torch.dtype = None):

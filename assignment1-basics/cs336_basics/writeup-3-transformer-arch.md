@@ -985,3 +985,28 @@ The single query vector attends only to the first two keys.
 Computationally, it will be much more efficient to use masking than to compute attention on
 subsequences, and we can do this by taking the pre-softmax values `(Q @ K.T) / sqrt(d_k)` and adding a `-inf` to
 any entry of the mask matrix that is False. (Note `exp(-inf) == 0`)
+
+I implemented the `scaled_dot_product_attention` function in [`nn_modules.py`](./nn_modules.py).
+
+I implemented the `run_scaled_dot_product_attention` function in [`../tests/adapters.py](../tests/adapters.py).
+
+To runt tests:
+
+```sh
+uv pytest -k test_4d_scaled_dot_product_attention
+```
+
+```sh
+uv run pytest -k test_4d_scaled_dot_product_attention
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_4d_scaled_dot_product_attention PASSED
+
+================================================================= 1 passed, 47 deselected in 0.09s ==================================================================
+```
+
