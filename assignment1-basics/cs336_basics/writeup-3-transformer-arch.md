@@ -664,3 +664,106 @@ Related papers:
 
 ### 3.5.3 Relative Position Embeddings
 
+Before tackling Rotary Position Embedding module, I found it beneficial to first understand
+the rationale behind positional embeddings, understand the PE algorithm used in the original transformer paper (Vaswani et al 2017)
+and contrast that with RoPE which we implement here.
+
+So why positional embeddings? In sequence-to-sequence language model architectures based on RNNs and LSTMs, the model
+learns to attend to the relative position of words based on the fact that hidden state `s[t]` is a function of `s[t-1]`.
+However, this recursive definition forces operations to be sequential and makes parallelism difficult.
+
+#### Desired properties of Positional Encoding
+
+In the Transformer architecture, we also want a way to encode and attend to relative position of words/tokens. So
+we need to devise a positional encoding mechanism. Unlike with RNNs, we want an encoding that can be computed
+in parallel for better efficiency. In general, we want an encoding function with the following properties:
+
+- **Uniqueness**: Each position maps to a different vector, so the model can distinguish positions
+- **Smoothness/continuity**: Nearby positions have similar positions, so the model can generalize patterns like "next word", "previous word"
+- **Relative information is recoverable**: The model can infer distance between positions, direction (before/after). `f(pos+k)` is predictable from `f(pos)`. This is the most important property.
+- **Linear usability**: Relative shifts can be expressed via linear operations (dot products, linear layers, etc.) since transformers are generally made up of linear operations and attentions.
+- **Parallel computability**: No dependence on previous tokens.
+
+#### Position Encoding function in original Transformer
+
+In the original Transformer, the position encoding function is applied before the encoder and decoder blocks, i.e. before the
+self-attention mechanisms. i.e. the PE function is applied to the input and output embeddings, the resulting positional
+embeddings are sent as input to the encoder and decoder respectively.
+
+The encoding function used is the following sinusoidal function:
+
+```
+PE(pos, 2i) = sin(pos/10000**(2i/d_model))
+
+PE(pos, 2i + 1) = cos(pos/10000**(2i/d_model))
+```
+
+Where `pos` is the token position in the sequence, `i` is the feature index in input embedding vector and `d_model` is
+the length of the embedding vector.
+
+Each dimension of the positional encoding corresponds to sinusoid.
+They chose this function because they hypothesized it would allow the model to easily learn to attend by
+relative positions, since for any fixed offset `k`, `PE(pos+k)` can be represented as a linear function of
+`PE(pos)`.
+
+Let's break down this function in more detail:
+
+This encoding treats the embedding vector as a sequence of coordinates pairs in 2D space, i.e. (E[i], E[1]) is
+a single point. And we derive an angle `pos/10000**(2i/d_model)` from each point `(E[2i], E[2i+1])` for
+which we compute the sin and cos which we store in the resulting `PE` vector.
+
+In this case, we can think of the resulting `PE` vector as a high-dimensional clock or binary counter.
+
+#### Geometric intuition:
+
+Think of a binary counter:
+- in the least significant bit, the value flips every step (0, 1, 0, 1...)
+- in the next bit, it flips every two steps (0, 0, 1, 1, ...)
+- The higher the bit, the slower the change, i.e. the lower the frequency or the longer the wavelength
+
+The sinusoid functions achieve the same concept but with continuous waves instead of discrete bits:
+- For lower values of i (start of the vector), the frequency is very high. The values jitter
+rapidly as you move from one word to the next
+- For high values of i (the end of the vector), the frequence is very low. The values change very slowly across the sequence.
+
+For a given position `pos`, you get a vector like:
+
+```python
+[fast_wave(pos), ..., medium_wave(pos), ..., fast_wave(pos)]
+```
+
+By combining these, every position gets a unique signature. It's like a clock where the "seconds" hand moves fast
+and the "hours" hand moves slow; by looking at all hands at once, you can tell the exact time.
+
+#### Why sin and cos for even and odd i?
+
+So that the model is able to represent relative positions. For any fixed `k`,
+`PE(pos + k)` can be represented as a linear transformation for `PE(pos)`.
+
+Using sin-cos pairs creates a rotation. If you have point `(sin(x), cos(x))` and you want to move to
+`(sin(x + k), cos(x + k))`, you can do so by multiplying the original point by a simple rotation matrix. Conceptually
+this allows the attention mechanism to "feel" the distance between words (pos and pos+k) purely by calculating
+their dot product, regardless of where they are in the sentence
+
+#### Why 10,000?
+
+The `10000**(2i/d_model)` term determines the wave length. Shorter wavelength is `2pi` at i = 0. Longest is 10000 * 2pi at i = d_model/2.
+The number 10000 is somewhat arbitary, but it ensures that even for very long sequences, the "slowest" wave hasn't completed a full
+cycle yet. This provides a unique cradient for every position up to a very large sequence length. Hypothetically, it would
+help the model handle sequence lengths longer than the sentences it saw in training.
+
+#### What makes sinusodial encoding suitable?
+
+Now it should be clearer to understand why this sinusoidal function makes sense for positional encoding in the Transformer:
+
+- Unique identity: Different positions -> different phase combinations
+- Smoothness: sine/cosine change continuously -> differentiable
+- Relative structure: A shift in position = predictable transformation with linear ops
+  - Trig identities:
+    - `sin(a + b) = sinacostb + cosasinb`
+    - `cos(a + b) = cosacosb - sinasinb`
+- Multi-scale distances: different frequences encode short-range relationships, long-range relationships, etc.
+- Parallel computation: Each position can be computed indepedently
+
+
+

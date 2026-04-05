@@ -125,7 +125,7 @@ class RotaryPositionalEmbedding(nn.Module):
         k = torch.arange(1, d_k / 2 + 1)
         denom = theta ** ((2 * k - 2) / d_k)
 
-        assert denom.shape[0] == d_k / 2
+        assert denom.shape == (d_k / 2,)
         angles = positions / denom
         cosines = torch.cos(angles)
         sines = torch.sin(angles)
@@ -133,7 +133,7 @@ class RotaryPositionalEmbedding(nn.Module):
         even_idx = torch.arange(0, d_k, 2).to(torch.int)
         odd_idx = torch.arange(1, d_k, 2).to(torch.int)
 
-        assert even_idx.shape[0] == d_k / 2
+        assert even_idx.shape == (d_k / 2,)
         assert cosines.shape == (max_seq_len, d_k /2)
         rotation_matrix = torch.zeros((max_seq_len, d_k, d_k))
         rotation_matrix[:, even_idx, even_idx] = cosines
