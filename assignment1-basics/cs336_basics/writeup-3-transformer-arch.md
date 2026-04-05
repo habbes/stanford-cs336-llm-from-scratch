@@ -883,6 +883,10 @@ tests/test_model.py::test_rope PASSED
 ================================================================= 1 passed, 47 deselected in 0.10s ==================================================================
 ```
 
+Related papers:
+
+- [RoFormer: Enhacing transformers with rotatary position embedding, 2021, Jianlin Su et al.](https://arxiv.org/abs/2104.09864)
+
 ### 3.4.3 Scaled Dot-Product Attention
 
 In this section we'll implemented scaled dot-product attention based on the original transformer Paper.
@@ -947,3 +951,37 @@ tests/test_nn_utils.py::test_softmax_matches_pytorch PASSED
 
 ================================================================= 1 passed, 47 deselected in 0.07s ==================================================================
 ```
+
+Now to scaled dot-product attention. We have query, key and value vectors. 
+At a given position, the query vector associated with that position represents "what am I looking for",
+we'll perform a dot-product between the query and the keys of all the positions. That key
+represents some queryable metadata about a position, whereas the value represents the "content".
+The product of the query and all the keys represent how strongly a this position relates
+to each positions. We use softmax to transforms these "scores" into normalized weights. We
+use these weights to compute a normalized average of the values.
+
+The query, key and value vectors are packed into matrices to for parallel computation.
+
+```python
+Attention(Q, K, V) = softmax((Q @ K.T) / sqrt(d_k))V
+```
+
+Where Q => (n, d_k), K => (m, d_k) and V => (m, d_v). Here Q, K, V are all inputs to the operation.
+**They are not learnable parameters**
+
+In the Transformer paper, they found that large values of the dot products would lead to poor training performance,
+supposedly because large values push softmax to values that have very small gradients, which slows down learning.
+They countered that by scaling by `1/sqrt(d_k)`.
+
+**Masking** Sometimes we mask the output of an attention operator to avoid certain positions from attending to each other.
+For example, in the decoder we may not wan't tokens to attend to "future" tokens.
+A mask is typically a matrix M of `True` and `False` values of shape (n, m). Each row i indicates which keys the query i
+should attend to. A value of `True` at position (i, j) indicates that the query i does attend to the key j and `False`
+indicates that the query does not attend to the key.
+
+For example, consider a (1, 3) mask matrix with entries `[[True, True, False]]`.
+The single query vector attends only to the first two keys.
+
+Computationally, it will be much more efficient to use masking than to compute attention on
+subsequences, and we can do this by taking the pre-softmax values `(Q @ K.T) / sqrt(d_k)` and adding a `-inf` to
+any entry of the mask matrix that is False. (Note `exp(-inf) == 0`)
