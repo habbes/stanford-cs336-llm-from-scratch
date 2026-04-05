@@ -690,12 +690,17 @@ In the original Transformer, the position encoding function is applied before th
 self-attention mechanisms. i.e. the PE function is applied to the input and output embeddings, the resulting positional
 embeddings are sent as input to the encoder and decoder respectively.
 
+i.e 
+
+```python
+input = embedding + PE(pos)
+```
+
 The encoding function used is the following sinusoidal function:
 
-```
-PE(pos, 2i) = sin(pos/10000**(2i/d_model))
-
-PE(pos, 2i + 1) = cos(pos/10000**(2i/d_model))
+```python
+PE[pos, 2i] = sin(pos/10000**(2i/d_model))
+PE[pos, 2i + 1] = cos(pos/10000**(2i/d_model))
 ```
 
 Where `pos` is the token position in the sequence, `i` is the feature index in input embedding vector and `d_model` is
@@ -765,5 +770,92 @@ Now it should be clearer to understand why this sinusoidal function makes sense 
 - Multi-scale distances: different frequences encode short-range relationships, long-range relationships, etc.
 - Parallel computation: Each position can be computed indepedently
 
+### What makes RoPE different?
+
+In this project, we're asked to implement Rotary Positional Embeddings. Why is different/better from the original attention?
+Two of the key differences between RoPE and the original PE is that:
+- RoPE is applied directly to the attention mechanism, not on token embeddings
+- RoPE cares about relative positions, not really about absolute positions of tokens.
+
+In the original PE, content (input embeddings) and positions are mixed "too early"
+in the pipeline, given that attention is computed a bit later. Attention is still
+based on content (Q and K vectors) and only indirectly/implicitly extracts relative
+position information from the position embeddings.
+
+In RoPE the position encoding function is applied directly to Q and K vectors in
+the attention mechanism. RoPE rotates Q and K vectors by an angle proportional
+to the position. After rotation, `Q[i]` and `K[j]` become a function of (i - j).
+The dot product now directly depends on relative position.
+
+Why is this better?
+
+- Relative position is built-in
+  - Instead of learning:
+    - "token 5 should attend to token 3"
+  - The model naturally gets:
+    - "distance = 2 affects attention"
+- Translation invariance
+  - If you shift the whole sequence:
+    - original encoding: representations change globally
+    - RoPE: relative relationships stay the same
+- More efficient learning
+  - The model doesn’t need to "discover" relative position:
+  - It’s already encoded in the dot product
+
+In RoPE, the q_i vector of size d is also treated as a collection of d/2 coordinate pairs in 2D space
+from wchih d/2 angles are computed based on the token position i.
+
+The angle is computed as
+
+```python
+angle[i, k] = i / (theta ** ((2k - 2)/d)
+```
+
+Where `theta` is some constant provided as a hyperparameter of the `RoPE` function (similar to the 10000 used in the original PE).
+And k is in range [1..d/2]. Since 1 starts from one, 2k-2 starts at 0, then 4, then 6, etc. up to d/2.
 
 
+RoPE applies a 2x2 rotation matrix `R` to each coordinate pair, to rotate it by the corresponding angle:
+
+```python
+R[i,k] =
+[
+  [cos(angle[i,k]), -sin(angle[i, k)]
+  [sin(angle[i,k),  cos(angle[i, k])]
+]
+```
+
+To apply this matrix in parallel to all coordinate pairs, we consider `R[i]` to be a block-diagonal matrix
+of size d*d such that
+
+```python
+R[i] = 
+[
+  R[i, 1], 0,      0,      ...0
+  0,       R[i,2], 0,      ...0
+  0,     , 0,      R[i,3], ...0
+  0,     , 0,      0,      ...R[i,d/2]
+]
+```
+When expanded, it looks like this:
+
+![alt text](rope-rotation-matrix-expanded.png)
+
+And with expanded angles:
+
+![alt text](rope-rotation-matrix-expanded-angles.png)
+
+
+Note that this is only R[i], so we'll compute such a matrix for each token position i. Since
+the matrix has fixed values for each position and d dimensions, and as hinted to by the instructions,
+we can compute the full matrix ahead of time for each possible position up to some `max_seq_len` and cache
+it. Since it doesn't have any learnable parameters and we don't want to have gradients computed for it,
+we won't create an `nn.Parameter` wrapper for it. But since we still want it to be part of the model's
+architecture, we'll cache it using [`register_buffer`](https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module.register_buffer). This will ensure that when the model is moved to a
+target device, that the PE matrix is moved as well. We'll set `persistent` to false because we don't
+want its values to be serialized when the model saved (or deserialized).
+
+So we'll create a rotation matrix with dimensions `(max_seq_len, d_k, d_k)` and initialize it
+with all required cosines and sines in the block diagonal dimensions, then in the
+`forward()` method we'll use the `token_positions` input to extra just the rotation matrices
+for the target positions and apply the rotations to the batched inputs.
