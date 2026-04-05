@@ -9,7 +9,7 @@ This is the architecture we're going to implement (this differs from the origina
 ![Our transformer architecture](our-transformer-architecture.png)
 
 
-## 3.3 Remark: Batching, Einsum and Efficient Computation
+## 3.2 Remark: Batching, Einsum and Efficient Computation
 
 Einsum notation, inspired by Einstein sums, is a more readable and ergonomic way of working tensor dimensions.
 It provides more intuitive syntax of operations like rearranging dimensions, transposition, broadcast operations, etc.
@@ -162,9 +162,9 @@ it keeps the batch size (and other dimensions that should not be summed over) in
 with preserves batch semantics, and most pytorch nn operations expect the batch size as the leading dimension.
 The row major form is also aligned with PyTorch's default memory order, deep learning kernels, etc. SIMD/CUDA, etc.
 
-## 3.4 Basic Building Blocks: Linear and Embedding modules
+## 3.3 Basic Building Blocks: Linear and Embedding modules
 
-### 3.4.1 Parameter initialization
+### 3.3.1 Parameter initialization
 
 > Training neural networks effectively often requires careful initialization of the model parameters—bad initial-izations can lead to undesirable behavior such as vanishing or exploding gradients.
 > Pre-norm transformers are unusually robust to initializations, but they can still have a siginificant impact on training speed and convergence.
@@ -176,7 +176,7 @@ The row major form is also aligned with PyTorch's default memory order, deep lea
 
 You should use `torch.nn.init.trunc_normal_` to initialize the truncated normal weights
 
-### 3.4.2 Linear Module
+### 3.3.2 Linear Module
 
 In this part, I implement a linear module based on `nn.Module` to compute y = Wx, to mirror the standard [`nn.Linear`](https://docs.pytorch.org/docs/stable/generated/torch.nn.modules.linear.Linear.html).
 
@@ -279,7 +279,7 @@ SCENARIO: Verify Linear module weights are initialized with expected distributio
 Test passed!
 ```
 
-### 3.4.3 Embedding module
+### 3.3.3 Embedding module
 
 The embedding layer maps integer token IDs into a vector space of dimension `d_model`, where `d_model` conceptually represents the number of features that represent a token i.e.
 An embedding vector will be learned for each unique token id. The embedding module will hold these embedding vectors into a tensor of size `(vocab_size, d_model)` where
@@ -448,7 +448,7 @@ SCENARIO: Verify Embedding module weights are initialized with expected distribu
 Test passed!
 ```
 
-## 3.5 Pre-Norm Transformer block
+## 3.4 Pre-Norm Transformer block
 
 Normalization is a technique for rescaling the weights of network during training to have predictable, stable range of values.
 Instead of letting the values grow arbitrarily large or small, they are rescaled to have a stable mean and variance.
@@ -481,7 +481,7 @@ Related papers:
 - [Transformers without tears: Improving the normalization of self attention, 2019, Nguyen and Salazar](https://arxiv.org/abs/1910.05895)
 - [On layer normalization in Transformer architecture, 2020, Xiong et al](https://arxiv.org/abs/2002.04745)
 
-### 3.5.1 Root Mean Square Layer normalization
+### 3.4.1 Root Mean Square Layer normalization
 
 We're going to use `RMSNorm` activation:
 Given a vector `a` with size `d_model` of activations, `RMSNorm` will rescale each activation `a[i]` as follows:
@@ -567,7 +567,7 @@ tests/adapters.py:295
 ============================================================ 1 passed, 47 deselected, 1 warning in 0.56s ============================================================
 ```
 
-### 3.5.2 Position-Wise Feedforward Network
+### 3.4.2 Position-Wise Feedforward Network
 
 In the original Transformer paper, the feed-forward network consists of two linear transformations with ReLU between them.
 The dimensionality of the inner feed-forward layer is typically 4x the input dimensionality.
@@ -662,7 +662,7 @@ Related papers:
 - [The Llama 3 Herd of Models, 2024, Grattafiori et al](https://arxiv.org/abs/2407.21783)
 - [Qwen 2.5 Technical Report, 2024, Yang et al](https://arxiv.org/abs/2412.15115)
 
-### 3.5.3 Relative Position Embeddings
+### 3.4.3 Relative Position Embeddings
 
 Before tackling Rotary Position Embedding module, I found it beneficial to first understand
 the rationale behind positional embeddings, understand the PE algorithm used in the original transformer paper (Vaswani et al 2017)
@@ -881,4 +881,69 @@ collected 48 items / 47 deselected / 1 selected
 tests/test_model.py::test_rope PASSED
 
 ================================================================= 1 passed, 47 deselected in 0.10s ==================================================================
+```
+
+### 3.4.3 Scaled Dot-Product Attention
+
+In this section we'll implemented scaled dot-product attention based on the original transformer Paper.
+
+But before that, we'll first implement our version of `softmax`. The softmax function is used
+to transform an unnormalized vector of scores in to a normalized distribution with
+values in range [0..1] that sum to 1 (probability distribution):
+
+```
+softmax(x) = exp(x) / sum(exp(x))
+```
+
+`exp(x)` can become `inf` for large values, resulting in `inf/inf` == `NaN`. We can avoid
+this by subtracting the max value from each score, this will bound the resulting vector
+to a max value of `0`, which avoids the overflow.
+
+This trick works because:
+
+```python
+exp(x + c) / sum(exp(x + c)) == exp(x) / sum(exp(x))
+```
+
+for sum constant `c`.
+
+We can easily demonstrate that:
+
+```python
+exp(x + c) / sum(exp(x + c))
+
+== exp(x) * exp(c) / sum(exp(x) * exp(c))
+
+== exp(x) * exp(c) / exp(c) * sum(exp(x))
+
+# If we cancel out exp(c) from the numerator and denumerator
+# we get softmax(x)
+
+== exp(x) / sum(exp(x))
+
+== softmax(x)
+```
+
+I've implement `softmax` as simply the function `softmax` in [`nn_modules.py`](./nn_modules.py).
+
+I've implemented the adapter `run_softmax` in [`tests/adapters.py`](../tests/adapters.py).
+
+To run tests:
+
+```sh
+uv run pytest -k test_softmax_matches_pytorch
+```
+
+```sh
+uv run pytest -k test_softmax_matches_pytorch
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_nn_utils.py::test_softmax_matches_pytorch PASSED
+
+================================================================= 1 passed, 47 deselected in 0.07s ==================================================================
 ```

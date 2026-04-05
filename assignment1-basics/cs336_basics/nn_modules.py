@@ -3,6 +3,25 @@ import math
 from torch import nn
 from einops import einsum, rearrange, repeat
 
+def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
+    """
+    Computes the softmax exp(x)/sum(exp(x)) which
+    transforms a tensor of unnormalized values into
+    a probability distributions, i.e. values ranging from 0 to 1.
+
+    Args:
+        x (torch.Tensor): The input tensor
+        dim (int): The dimension along which to compute the softmax.
+    """
+    # exp(x) can be unboundendly large, and could lead to inf/inf which results to NaN
+    # To avoid this overflow, we can subtract the max value from each value
+    # such that the max becomes x is 0. This prevents overflow.
+    # This works because exp(x + c)/sum(exp(x + c)) == exp(x)/sum(exp(x))
+    maxes = torch.max(x, dim=dim, keepdim=True).values
+    exps = torch.exp(x - maxes)
+    sum_exps = torch.sum(exps, dim=dim, keepdim=True)
+    return exps / sum_exps
+
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device:torch.device = None, dtype: torch.dtype = None):
         """
