@@ -1,7 +1,7 @@
 import torch
 import math
 from torch import nn
-from einops import einsum, rearrange
+from einops import einsum, rearrange, repeat
 
 class Linear(nn.Module):
     def __init__(self, in_features: int, out_features: int, device:torch.device = None, dtype: torch.dtype = None):
@@ -107,3 +107,70 @@ class FFSwiGLU(nn.Module):
         y = y * w3_x
         y = self.W2(y)
         return y
+
+class RotaryPositionalEmbedding(nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device: torch.device=None):
+        """
+        Constructs the RoPE module and create buffers if needed.
+
+        Args:
+            theta (float): The constant used in the denominator of the RoPE equation.
+            d_k (int): The dimension of query and key vectors
+            max_seq_len (int): Maximum sequence length of the input.
+            device (torch.device): Device to store the buffer on.
+        """
+        super().__init__()
+        
+        positions = rearrange(torch.arange(max_seq_len), "... -> ... 1")
+        k = torch.arange(1, d_k / 2 + 1)
+        denom = theta ** ((2 * k - 2) / d_k)
+
+        assert denom.shape[0] == d_k / 2
+        angles = positions / denom
+        cosines = torch.cos(angles)
+        sines = torch.sin(angles)
+
+        even_idx = torch.arange(0, d_k, 2).to(torch.int)
+        odd_idx = torch.arange(1, d_k, 2).to(torch.int)
+
+        assert even_idx.shape[0] == d_k / 2
+        assert cosines.shape == (max_seq_len, d_k /2)
+        rotation_matrix = torch.zeros((max_seq_len, d_k, d_k))
+        rotation_matrix[:, even_idx, even_idx] = cosines
+        rotation_matrix[:, even_idx, odd_idx] = -sines
+        rotation_matrix[:, odd_idx, even_idx] = sines
+        rotation_matrix[:, odd_idx, odd_idx] = cosines
+
+        self.register_buffer("rotation_matrix", rotation_matrix, persistent=False)
+
+        # [cos -sin    0      0
+        #  sin  cos    0      0
+        #  0     0     cos    -sin   0        0
+        #  0     0     sin    cos    0        0
+        #  0     0     0      0      cos    -sin
+        #  0     0     0      0      sin      cos
+
+        #  block indices
+        #  [0, 0], [0, 1]
+        #  [1, 0], [1, 1]
+        #  [2, 2], [2, 3]
+        #  [3, 2], [3, 3]
+        #  [4, 4], [4, 5]
+        #  [5, 4], [5, 5]
+
+
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        """
+        Applies RoPE to the specified input x (usually a matrix of query or key vectors for each
+        position in the sequence) for the specified positions.
+
+        Processes an input tensor of shape (..., seq_len, d_k) and returns a tensor
+        of the same shape.
+
+        Args:
+            x (torch.Tensor): The input, usually key or query, to apply RoPE to. Shape (..., seq_len, d_k)
+            token_positions (torch.Tensor): Token positions for which to apply RoPE. Shape = (..., seq_len)
+        """
+        rm = self.rotation_matrix[token_positions]
+        result = einsum(x, rm, "... n_positions in_features, n_positions out_features in_features -> ... n_positions out_features ")
+        return result

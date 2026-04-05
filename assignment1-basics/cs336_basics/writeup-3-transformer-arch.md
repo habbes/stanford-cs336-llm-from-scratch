@@ -661,3 +661,6 @@ Related papers:
 - [PaLM: Scaling language modelling with Pathways](https://arxiv.org/abs/2204.02311)
 - [The Llama 3 Herd of Models, 2024, Grattafiori et al](https://arxiv.org/abs/2407.21783)
 - [Qwen 2.5 Technical Report, 2024, Yang et al](https://arxiv.org/abs/2412.15115)
+
+### 3.5.3 Relative Position Embeddings
+
