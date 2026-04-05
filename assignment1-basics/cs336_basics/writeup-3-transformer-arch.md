@@ -859,3 +859,26 @@ So we'll create a rotation matrix with dimensions `(max_seq_len, d_k, d_k)` and 
 with all required cosines and sines in the block diagonal dimensions, then in the
 `forward()` method we'll use the `token_positions` input to extra just the rotation matrices
 for the target positions and apply the rotations to the batched inputs.
+
+I've implemented the `RotaryPositionalEmbedding` module in [`nn_modules`](./nn_modules.py).
+I implemented the `run_rope` adapter function in [`tests/adapters.py`](../tests/adapters.py).
+
+To run the test:
+
+```sh
+uv run pytest -k test_rope
+```
+
+```sh
+uv run pytest -k test_rope                           
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_rope PASSED
+
+================================================================= 1 passed, 47 deselected in 0.10s ==================================================================
+```

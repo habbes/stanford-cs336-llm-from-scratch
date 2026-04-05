@@ -111,7 +111,8 @@ class FFSwiGLU(nn.Module):
 class RotaryPositionalEmbedding(nn.Module):
     def __init__(self, theta: float, d_k: int, max_seq_len: int, device: torch.device=None):
         """
-        Constructs the RoPE module and create buffers if needed.
+        Constructs the RoPE module and create buffers if needed. This module
+        can be reused to perform rotations for all query or key vectors in any layers.
 
         Args:
             theta (float): The constant used in the denominator of the RoPE equation.
@@ -121,43 +122,87 @@ class RotaryPositionalEmbedding(nn.Module):
         """
         super().__init__()
         
+        # RoPE treats input query and key vectors as collection of
+        # coordinate pairs in 2D space then rotates those points
+        # using a 2x2 rotation matrix.
+        # The angle of the rotation is based on the token position
+        # and the dimension of the query/key vectors.
+
+        # We create and cache a tensor of 2D rotation blocks for all possible
+        # token positions up to max_seq_len
+
+        # First let's compute the angles for all possible positions.
+        # The rotation angle[pos, k] = i/(theta ** (2k - 2)/d)
+        # where k is in range [1, d/2] and pos is the token position
+        # which means (2k-2) goes from 0, 2, 6, ..., d-2
+        assert d_k % 2 == 0, f"The d_k parameter representing query vector dimensions should be an even number, but got {d_k}"
         positions = rearrange(torch.arange(max_seq_len), "... -> ... 1")
         k = torch.arange(1, d_k / 2 + 1)
         denom = theta ** ((2 * k - 2) / d_k)
 
         assert denom.shape == (d_k / 2,)
         angles = positions / denom
+
+        # Each rotation matrix R[pos, k] = 
+        # [ 
+        # cos(angle[pos, k]),  -sin(angle[pos, k])
+        # sin(angle[pos, k]),   cos(angle[pos, k])
+        #]
+        # So we need to compute cos and sin for all possible
+        # angles.
         cosines = torch.cos(angles)
         sines = torch.sin(angles)
+
+        assert cosines.shape == (max_seq_len, d_k / 2)
+        assert sines.shape == (max_seq_len, d_k / 2)
+
+        # For each token position, we can pack the 2x2 rotation
+        # matrices into a larger matrix R[pos] so we can
+        # efficiently rotate different points in the input vector
+        # in parallel.
+        # The full matrix R[pos] will is a block digonal matrix
+        # R[pos] = 
+        # [
+        #   R[pos, 1]    0            0              0
+        #   0            R[pos, 2]    0              0
+        #   0            0            R[pos, 3]  ... 0
+        #   0            0            0          ... R[pos, d/2]
+        # ]
+        # Where each R[pos, k] is a 2x2 rotation matrix
+        # and each 0 is a 2x2 zero matrix.
+        # So expanded, it looks like (cos and sin arguments omitted for brevity)
+        # [[cos, -sin,    0,      0,      0,         0]
+        #  [sin,  cos,    0,      0,      0,         0]
+        #  [0,    0,      cos,    -sin,   0,         0]
+        #  [0,    0,      sin,    cos,    0,         0]
+        #  [0,    0,      0,      0,      cos,      -sin]
+        #  [0,    0,      0,      0,      sin,      cos]
+        # ]
+        # From this we can see that for each 2x2 rotation sub-matrix:
+        # - cosines at the top-left of the sub-matrix are at indices [0,0], [2,2], [4,4] etc. i.e. [even_idx, even_idx]
+        # - -sines at the top-right are at indices [0,1], [2,3], [4,5], etc. i.e. [even_idx, odd_idx]
+        # - sines at the bottom-left are at indices [1,0], [3,2], [5,4], etc., i.e. [odd_idx, even_idx]
+        # - cosines at the bottom-right are at indices [1,1], [3,3], [5,5],e etc., i.e. [odd_idx, odd_idx]
 
         even_idx = torch.arange(0, d_k, 2).to(torch.int)
         odd_idx = torch.arange(1, d_k, 2).to(torch.int)
 
         assert even_idx.shape == (d_k / 2,)
-        assert cosines.shape == (max_seq_len, d_k /2)
+        assert odd_idx.shape == (d_k / 2,)
+
         rotation_matrix = torch.zeros((max_seq_len, d_k, d_k))
         rotation_matrix[:, even_idx, even_idx] = cosines
         rotation_matrix[:, even_idx, odd_idx] = -sines
         rotation_matrix[:, odd_idx, even_idx] = sines
         rotation_matrix[:, odd_idx, odd_idx] = cosines
 
+        # Register the matrix so the Module is aware of it.
+        # This way if this module is moved to a different device, the matrix
+        # will be moved to. However since it has no learnable parameters,
+        # we don't use nn.Parameter.
+        # We also don't want this to be (de)serialized when the model is
+        # saved or loaded, hence persistent=False.
         self.register_buffer("rotation_matrix", rotation_matrix, persistent=False)
-
-        # [cos -sin    0      0
-        #  sin  cos    0      0
-        #  0     0     cos    -sin   0        0
-        #  0     0     sin    cos    0        0
-        #  0     0     0      0      cos    -sin
-        #  0     0     0      0      sin      cos
-
-        #  block indices
-        #  [0, 0], [0, 1]
-        #  [1, 0], [1, 1]
-        #  [2, 2], [2, 3]
-        #  [3, 2], [3, 3]
-        #  [4, 4], [4, 5]
-        #  [5, 4], [5, 5]
-
 
     def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
         """
@@ -171,6 +216,10 @@ class RotaryPositionalEmbedding(nn.Module):
             x (torch.Tensor): The input, usually key or query, to apply RoPE to. Shape (..., seq_len, d_k)
             token_positions (torch.Tensor): Token positions for which to apply RoPE. Shape = (..., seq_len)
         """
+        # Retrieve rotation matrices for the specified token positions
         rm = self.rotation_matrix[token_positions]
+        # For each input vector in the batch x in each token position, we want to perform
+        # matrix multiplication R[pos] @ x[batch, pos].T
+        # that's equivalent to x[batch, pos] @ R[pos].T
         result = einsum(x, rm, "... n_positions in_features, n_positions out_features in_features -> ... n_positions out_features ")
         return result
