@@ -270,3 +270,22 @@ class RotaryPositionalEmbedding(nn.Module):
         # that's equivalent to x[batch, pos] @ R[pos].T
         result = einsum(x, rm, "... n_positions in_features, n_positions out_features in_features -> ... n_positions out_features ")
         return result
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, dtype: torch.dtype = None, device: torch.device = None):
+        super().__init__()
+        dk = d_model / num_heads
+        # since d_k = d_q = d_v = d_model / num_heads,
+        # think of each weight matrix here as a contatenation of
+        # num_heads submatrices of dimension d_k x d_model
+        # i.e in terms of Linear module
+        # in_features = d_model, out_features = d_k * num_heads
+        self.Wq = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.Wk = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.Wv = Linear(d_model, d_model, device=device, dtype=dtype)
+    
+    def forward(self, x: torch.Tensor):
+        queries = self.Wq(x) # (batch, num_heads * d_k)
+        keys = self.Wk(x) # (batch, num_heads * d_k)
+        values = self.Wv(x) # (batch, num_heads * d_k)
+        
