@@ -72,15 +72,15 @@ You can specify the output dir where the vocab and merges files will be saved.
 uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -o path/output/dir
 ```
 
-- Run official tests
+## Run official tests
 
-BPE training tests
+### BPE training tests
 
 ```bash
 uv run pytest tests/test_train_bpe.py
 ```
 
-Test specfic test function in test suite:
+### Test specfic test function in test suite:
 
 ```bash
 uv run pytest tests/test_train_bpe.py::test_train_bpe
@@ -92,8 +92,50 @@ By default truncated diffs are displayed for failed tests. To show full diff, us
 uv run pytest tests/test_train_bpe.py::test_train_bpe -vv
 ```
 
-Tokenizer tests
+### Tokenizer tests
 
 ```bash
-uv run pytest tests/tokenizer.py
+uv run pytest tests/test_tokenizer.py
+```
+
+### Linear module tests
+
+```bash
+uv run pytest -k test_linear
+```
+
+### Embedding module tests
+
+```sh
+uv run pytest -k test_embedding
+```
+
+### RMSNorm tests
+
+```sh
+uv run pytest -k test_rmsnorm
+```
+
+### SwiGLU tests
+
+```sh
+uv run pytest -k test_swiglu
+```
+
+### RoPE tests
+
+```sh
+uv run pytest -k test_rope
+```
+
+### Softmax tests
+
+```sh
+uv run pytest -k test_softmax_matches_pytorch
+```
+
+### Scaled dot product attention tests
+
+```sh
+uv run pytest -k test_4d_scaled_dot_product_attention
 ```

@@ -993,7 +993,7 @@ I implemented the `run_scaled_dot_product_attention` function in [`../tests/adap
 To runt tests:
 
 ```sh
-uv pytest -k test_4d_scaled_dot_product_attention
+uv run pytest -k test_4d_scaled_dot_product_attention
 ```
 
 ```sh
