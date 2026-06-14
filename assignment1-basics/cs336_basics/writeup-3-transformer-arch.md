@@ -171,7 +171,7 @@ The row major form is also aligned with PyTorch's default memory order, deep lea
 > Since this assignment is already long, we will save the details for assignment 3, and instead give you some approximate initializations that should work well for most cases. For now, use:
 
 - Linear Weights: `NormalDistribution(mean = 0, variance = 2 / (d_in + d_out))` truncated at [-3stddev, 3stddev]
-- Embedding: `NormalDistribution(mean = 0, variance = 1) truncated at [-3, 3]
+- Embedding: `NormalDistribution(mean = 0, variance = 1)` truncated at [-3, 3]
 - RMSNorm: 1
 
 You should use `torch.nn.init.trunc_normal_` to initialize the truncated normal weights
@@ -330,7 +330,7 @@ Then the output of the embedding layer will be the following tensor of shape `(b
 ]
 ```
 
-Conveniently, PyTorch allows you to index a tensor using a collection of indices to retreive query items at the same time.
+Conveniently, PyTorch allows you to index a tensor using a collection of indices to retrieve query items at the same time.
 Like in the following example we use the `indices` collection to query the `x` tensor, which returns an output tensor
 based on the specified indices:
 
@@ -469,7 +469,7 @@ work has shown that applying normalization before the sublayers improves trainin
 The pre-norm transfomer is now the standard used in modern language models (e.g. GPT-3, LLaMA, PaLM, etc.). That's
 what we'll use in this project.
 
-![Pre-norm in transformer block](prenorm-transformer-block)
+![Pre-norm in transformer block](prenorm-transformer-block.png)
 
 An intuition for pre-norm is that there is a clean “residual stream” without any normalization going from the input embeddings to the final output of the Transformer,
 which is purported to improve gradient flow.
@@ -530,7 +530,7 @@ additions/mulitiplications by scalars are all element-wise, so no issue there.
 
 So the RMS part should be `(batch_size, 1)`, and when it divides the input x, which is `(batch_size, d_model)`
 Then for each sample in the batch, the activations in that sample will be divided by the corresponding
-rms of that batch item. What definitely want to avoid having the same rms divide all elements input tensor
+rms of that batch item. We definitely want to avoid having the same rms divide all elements input tensor
 regardless of batch item. The output of this operation is `(batch_size, d_model)`.
 
 Finally, when `(batch_size, d_model)` is multiplied by the vector g `(d_model,)`, then standard
@@ -706,14 +706,14 @@ PE[pos, 2i + 1] = cos(pos/10000**(2i/d_model))
 Where `pos` is the token position in the sequence, `i` is the feature index in input embedding vector and `d_model` is
 the length of the embedding vector.
 
-Each dimension of the positional encoding corresponds to sinusoid.
+Each dimension of the positional encoding corresponds to a sinusoid.
 They chose this function because they hypothesized it would allow the model to easily learn to attend by
 relative positions, since for any fixed offset `k`, `PE(pos+k)` can be represented as a linear function of
 `PE(pos)`.
 
 Let's break down this function in more detail:
 
-This encoding treats the embedding vector as a sequence of coordinates pairs in 2D space, i.e. (E[i], E[1]) is
+This encoding treats the embedding vector as a sequence of coordinates pairs in 2D space, i.e. (E[2i], E[2i + 1]) is
 a single point. And we derive an angle `pos/10000**(2i/d_model)` from each point `(E[2i], E[2i+1])` for
 which we compute the sin and cos which we store in the resulting `PE` vector.
 
@@ -752,9 +752,9 @@ their dot product, regardless of where they are in the sentence
 
 #### Why 10,000?
 
-The `10000**(2i/d_model)` term determines the wave length. Shorter wavelength is `2pi` at i = 0. Longest is 10000 * 2pi at i = d_model/2.
+The `10000**(2i/d_model)` term determines the wave length. Shortest wavelength is `2pi` at i = 0. Longest is 10000 * 2pi at i = d_model/2.
 The number 10000 is somewhat arbitary, but it ensures that even for very long sequences, the "slowest" wave hasn't completed a full
-cycle yet. This provides a unique cradient for every position up to a very large sequence length. Hypothetically, it would
+cycle yet. This provides a unique gradient for every position up to a very large sequence length. Hypothetically, it would
 help the model handle sequence lengths longer than the sentences it saw in training.
 
 #### What makes sinusodial encoding suitable?
@@ -803,7 +803,7 @@ Why is this better?
   - It’s already encoded in the dot product
 
 In RoPE, the q_i vector of size d is also treated as a collection of d/2 coordinate pairs in 2D space
-from wchih d/2 angles are computed based on the token position i.
+from which d/2 angles are computed based on the token position i.
 
 The angle is computed as
 
@@ -812,7 +812,7 @@ angle[i, k] = i / (theta ** ((2k - 2)/d)
 ```
 
 Where `theta` is some constant provided as a hyperparameter of the `RoPE` function (similar to the 10000 used in the original PE).
-And k is in range [1..d/2]. Since 1 starts from one, 2k-2 starts at 0, then 4, then 6, etc. up to d/2.
+And k is in range [1..d/2]. Since k starts from 1, 2k-2 starts at 0, then 4, then 6, etc. up to d/2.
 
 
 RoPE applies a 2x2 rotation matrix `R` to each coordinate pair, to rotate it by the corresponding angle:
@@ -821,7 +821,7 @@ RoPE applies a 2x2 rotation matrix `R` to each coordinate pair, to rotate it by 
 R[i,k] =
 [
   [cos(angle[i,k]), -sin(angle[i, k)]
-  [sin(angle[i,k),  cos(angle[i, k])]
+  [sin(angle[i,k]),  cos(angle[i, k])]
 ]
 ```
 
@@ -857,7 +857,7 @@ want its values to be serialized when the model saved (or deserialized).
 
 So we'll create a rotation matrix with dimensions `(max_seq_len, d_k, d_k)` and initialize it
 with all required cosines and sines in the block diagonal dimensions, then in the
-`forward()` method we'll use the `token_positions` input to extra just the rotation matrices
+`forward()` method we'll use the `token_positions` input to extrac just the rotation matrices
 for the target positions and apply the rotations to the batched inputs.
 
 I've implemented the `RotaryPositionalEmbedding` module in [`nn_modules`](./nn_modules.py).
@@ -909,7 +909,7 @@ This trick works because:
 exp(x + c) / sum(exp(x + c)) == exp(x) / sum(exp(x))
 ```
 
-for sum constant `c`.
+for some constant `c`.
 
 We can easily demonstrate that:
 
@@ -956,11 +956,11 @@ Now to scaled dot-product attention. We have query, key and value vectors.
 At a given position, the query vector associated with that position represents "what am I looking for",
 we'll perform a dot-product between the query and the keys of all the positions. That key
 represents some queryable metadata about a position, whereas the value represents the "content".
-The product of the query and all the keys represent how strongly a this position relates
-to each positions. We use softmax to transforms these "scores" into normalized weights. We
+The product of the query and all the keys represent how strongly this position relates
+to each other position. We use softmax to transforms these "scores" into normalized weights. We
 use these weights to compute a normalized average of the values.
 
-The query, key and value vectors are packed into matrices to for parallel computation.
+The query, key and value vectors are packed into matrices for parallel computation.
 
 ```python
 Attention(Q, K, V) = softmax((Q @ K.T) / sqrt(d_k))V

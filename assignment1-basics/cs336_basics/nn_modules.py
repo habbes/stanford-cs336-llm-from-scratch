@@ -44,7 +44,7 @@ def scaled_dot_product_attention(queries: torch.Tensor, keys: torch.Tensor, valu
     if mask is not None:
         # Set locations we don't want to mask out to -inf
         # because exp(inf) == 0, so the corresponding query, key and value will not contribute to the attention.
-        scaled_dot_product[~mask] = -torch.inf
+        scaled_dot_product = scaled_dot_product.masked_fill(~mask, -torch.inf)
     weights = softmax(scaled_dot_product, dim=-1)
     result = einsum(weights, values, "batch_size ... n m, batch_size ... m d_v -> batch_size ... n d_v")
     return result
@@ -272,20 +272,74 @@ class RotaryPositionalEmbedding(nn.Module):
         return result
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, dtype: torch.dtype = None, device: torch.device = None):
+    def __init__(
+            self,
+            d_model: int,
+            num_heads: int,
+            use_rope: bool = False,
+            rope_theta: float = None,
+            rope_max_seq_len: int = None,
+            dtype: torch.dtype = None,
+            device: torch.device = None):
         super().__init__()
-        dk = d_model / num_heads
+        assert d_model % num_heads == 0, f"d_model {d_model} is not divisible by num_heads {num_heads}"
+        dk = int(d_model // num_heads)
+        assert isinstance(dk, int)
+        
         # since d_k = d_q = d_v = d_model / num_heads,
         # think of each weight matrix here as a contatenation of
         # num_heads submatrices of dimension d_k x d_model
         # i.e in terms of Linear module
         # in_features = d_model, out_features = d_k * num_heads
+        self.num_heads = num_heads
         self.Wq = Linear(d_model, d_model, device=device, dtype=dtype)
         self.Wk = Linear(d_model, d_model, device=device, dtype=dtype)
         self.Wv = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.Wo = Linear(d_model, d_model, device=device, dtype=dtype)
+        if use_rope:
+            assert isinstance(rope_max_seq_len, int)
+            self.rope = RotaryPositionalEmbedding(
+                theta=rope_theta,
+                d_k=dk,
+                max_seq_len=rope_max_seq_len,
+                device=device)
+        else:
+            self.rope = None
     
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor=None):
+        # Wq is concatenation of num_heads submatrices
+        # Each row of Wq computes a dot-product with x indepedendently
+        # So queries is concatenation of the indepedent dot-products of each row in Wq
+    
         queries = self.Wq(x) # (batch, num_heads * d_k)
         keys = self.Wk(x) # (batch, num_heads * d_k)
         values = self.Wv(x) # (batch, num_heads * d_k)
+        # Group the matrices into heads
+        queries = rearrange(queries, "... s (h d) -> ... h s d", h=self.num_heads)
+        keys = rearrange(keys, "... s (h d) -> ... h s d", h=self.num_heads)
+        values = rearrange(values, "... s (h d) -> ... h s d", h=self.num_heads)
+        seq_len = x.shape[-2]
+
+        if self.rope:
+            # TODO: RoPE is failing, revisit dimensions
+            if token_positions is None:
+                token_positions = torch.arange(0, seq_len)
+            queries = self.rope(queries, token_positions)
+            keys = self.rope(keys, token_positions)
+
+        # Causal masking. This ensures that tokens earlier
+        # in the sequence don't attend to future tokens
+        # since at token prediction inference time, the model
+        # will not have access to future tokens.
+        
+        mask = torch.tril(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool))
+        # Transform to a shape that can broadcasted across batches
+        mask = rearrange(mask, "q k -> 1 1 q k")
+        # batch, num_heads, seq, d_model
+        # 4, 
+
+        y = scaled_dot_product_attention(queries, keys, values, mask)
+        y = rearrange(y, "... h s d -> ... s (h d)")
+        out = self.Wo(y)
+        return out
         
