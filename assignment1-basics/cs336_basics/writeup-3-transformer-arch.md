@@ -966,7 +966,10 @@ The query, key and value vectors are packed into matrices for parallel computati
 Attention(Q, K, V) = softmax((Q @ K.T) / sqrt(d_k))V
 ```
 
-Where Q => (n, d_k), K => (m, d_k) and V => (m, d_v). Here Q, K, V are all inputs to the operation.
+Where Q => `(n, d_k)`, K => `(m, d_k)` and V => `(m, d_v)`. Here Q, K, V are all inputs to the operation.
+
+And the output has dimensions `(n, d_v)`.
+
 **They are not learnable parameters**
 
 In the Transformer paper, they found that large values of the dot products would lead to poor training performance,
@@ -983,8 +986,43 @@ but the number of key vectors and value vectors must be the same. This is becaus
 can come from different sequences, which may have different sequence lengths. For example, in a translation task,
 then input and output sequences are different, the queries come from the input sequence and the keys and values
 come from the output sequence, this would be **cross-attention**. In this implementation we'll be doing **self-attention**
-where queries, keys and vectors all derive from the same sequence (since the input sequence is also the output sequence for the next token prediction task) and n == m. But since we're implementing the scaled dot-product attention as a utility function that does not know where the queries, keys, values
-it receives as parameters come from, we implement it in a generalized form.
+where queries, keys and vectors all derive from the same sequence (since the source sequence is also the target sequence for the next token prediction task) and n == m. But since we're implementing the scaled dot-product attention as a utility function that does not know where the queries, keys, values
+it receives as parameters come from, we implement it in a generalized form. The result of the operation will have dimensions
+`(n, d_v)`.
+
+**Break down attention operation**
+
+I'm adding this updated section after having realized that I had the wrong idea of what operationa attention computes for a long time.
+I used to think attention is computing scores/weights for scaling the value vectors. That's incorrect! I realized after
+reviewing the equation by hand that it computes for each input sequence position a new value vector that is an element-wise
+weighted average of all the input value vectors. The weights are derived from the scaled dot products of the query vector at that position with
+all the key vectors and converting them to a probability distribution using softmax.
+
+Let's break this down in more detail. For demonstration, we'll ignore batching and just work with one input sequence.
+
+We have a source sequence of size n, so there are n query vectors of dimension d_k, on for each position each. We pack
+this in a matrix of Q of dimensions (n, d_k) where each row is query vector. We also assume we have a target sequence of size m. K is a matrix (m, d_k)
+where each of the m rows is a d_k dimension key vector. V is a matrix (m, d_v) where each of the m rows is
+a d_v dimension value vector.
+
+![alt text](queries-keys-vectors-matrices.png)
+
+Now for each position i in the source sequence, we take the query vector at that position and compute a dot product with each key vector in the
+target sequence. Remember that the dot product of two vectors is a scalar. We can consider this as an unnormalized scores, telling us how strongly
+this query correlates with that key. So we'll have m unnormalized scores for each query. This is essential vector-matrix multiplication,
+between a single query vector of dimension (1, d_k) and the K matrix of m keys, but we have to transpose for the dimensions to align
+for vector-matrix multiplication: (1, d_k) @ (d_k, m) => (1, m):
+
+![alt text](query-vector-key-matrix-multiplication.png)
+
+In the diagram above, the `s_i` vector contains the "unnormalized scores" corresponding to query `q_i`. Now we can parallelize
+this computation for all queries using simple matrix-matrix multiplication between query matrix Q and key matrix K:
+
+![alt text](queries-keys-matrix-multiplication.png)
+
+This returns a matrix where each row `i` is a vector `s_i` that contains the unnormalized attention scores for the corrsponding
+query position. This completes the dot production part of the function definition, i.e. the `Q @ K.T` part. The scaling
+part is simple, we just divide each element of the matrix by the constant `sqrt(d_k)`.
 
 **Masking** Sometimes we mask the output of an attention operator to avoid certain positions from attending to each other.
 For example, in the decoder we may not wan't tokens to attend to "future" tokens.
