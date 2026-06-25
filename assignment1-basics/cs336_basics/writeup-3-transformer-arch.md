@@ -973,6 +973,19 @@ In the Transformer paper, they found that large values of the dot products would
 supposedly because large values push softmax to values that have very small gradients, which slows down learning.
 They countered that by scaling by `1/sqrt(d_k)`.
 
+**Notes on dimensions**:
+
+Note that query and key vectors need to have the same dimensions (`d_k`) since they're operands of the dot product,
+but it's not technically required for value vectors to have the same dimensions, that's why we use `d_v`. But in
+our implementation, we'll use the same dimension so `d_k` == `d_v`. Also note that there n query vectors
+and m key vectors and also m value vectors. This means the number of query vectors can be different from the number of key vectors,
+but the number of key vectors and value vectors must be the same. This is because in general, queries and keys
+can come from different sequences, which may have different sequence lengths. For example, in a translation task,
+then input and output sequences are different, the queries come from the input sequence and the keys and values
+come from the output sequence, this would be **cross-attention**. In this implementation we'll be doing **self-attention**
+where queries, keys and vectors all derive from the same sequence (since the input sequence is also the output sequence for the next token prediction task) and n == m. But since we're implementing the scaled dot-product attention as a utility function that does not know where the queries, keys, values
+it receives as parameters come from, we implement it in a generalized form.
+
 **Masking** Sometimes we mask the output of an attention operator to avoid certain positions from attending to each other.
 For example, in the decoder we may not wan't tokens to attend to "future" tokens.
 A mask is typically a matrix M of `True` and `False` values of shape (n, m). Each row i indicates which keys the query i
