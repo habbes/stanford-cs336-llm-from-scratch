@@ -1024,6 +1024,68 @@ This returns a matrix where each row `i` is a vector `s_i` that contains the unn
 query position. This completes the dot production part of the function definition, i.e. the `Q @ K.T` part. The scaling
 part is simple, we just divide each element of the matrix by the constant `sqrt(d_k)`.
 
+Next we want to normalize each row of scores into a probability distribution (where each entry is between 0 and 1 and they sump to 1)
+using the `softmax` operation. Again, note that the softmax is applied indepedently for each row (in parallel). So, conceptually, the input
+to each softmax operation is a vector of size `n` (source sequence length). So for some row i, the softmax operation might produce
+a resulting normalized weights row that looks like `[0.2, 0.1, 0.1, 0.6]`. In this example, the last key (k_3) has the strongest correlation with
+q_i, which mean that source token at pos i will have stronger attention to target token at position 3. Note that the weights in that vector sum up to 1.
+
+Here's a more detailed breakdown of the computation
+
+![alt text](attention-softmax-operation.png)
+
+The last part is to multiply the weights by the values vector. I had this part wrong for a long time, so let me break it down make it
+clear what's going. Let's say we have m = 4 and d_v = 2, so 4 value vectors with 2 elements each:
+
+```python
+V = [
+  [0.1, 0.5],
+  [0.2, 0.8],
+  [0.4, 0.5],
+  [0.3, 0.2]
+]
+```
+
+And a weight vector retrieved from the previous softmax operation
+
+```python
+w_i = [0.2, 0.1, 0.1, 0.6]
+```
+
+If we do the dot product `w_i @ V` we get a single output vector of size 2 where each dimension j
+is a weighted average of the j_th elements from all the vectors, based on the weights in w_i:
+
+```python
+o_i = [
+  w_i @ V[:, 0],
+  w_i @ V[:, 1]
+]
+
+```python
+o_i[0] = w_i @ V[:, 0] =  0.2 * V[0][0] + 0.1 * V[1][0] + 0.1 * V[2][0] + 0.6 * V[3][0]
+o_i[1] = w_i @ V[:, 1] =  0.2 * V[0][1] + 0.1 * V[1][1] + 0.1 * V[2][1] + 0.6 * V[3][1]
+```
+
+```python
+o_i = [
+  0.2 * 0.1 + 0.1 * 0.2 + 0.1 * 0.4 + 0.6 * 0.3,
+  0.2 * 0.5 + 0.1 * 0.8 + 0.1 * 0.5 + 0.6 * 0.2
+]
+```
+
+```python
+o_i = [0.26, 0.35]
+```
+
+So the output vector o_i is a commbination of all the value vectors based on the weights w_i. All the value vectors
+contribute to this output, but biased towards the values where corresponding to the keys that the query attends the most
+to. This is the essence of the at the attention operator, to combine the values corresponding to the output sequence in
+a way that reflects the attention the query has over the corresponding keys.
+
+Of course, now we apply this operation in parallel for all weight vectors via matrix multiplication. But it's important
+to think of each resulting row as independently combuting the weighted average value vector mapped to the query (and source position)
+corresponding to that row.
+
 **Masking** Sometimes we mask the output of an attention operator to avoid certain positions from attending to each other.
 For example, in the decoder we may not wan't tokens to attend to "future" tokens.
 A mask is typically a matrix M of `True` and `False` values of shape (n, m). Each row i indicates which keys the query i
