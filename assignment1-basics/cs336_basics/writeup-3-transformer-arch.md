@@ -1086,6 +1086,8 @@ Of course, now we apply this operation in parallel for all weight vectors via ma
 to think of each resulting row as independently combuting the weighted average value vector mapped to the query (and source position)
 corresponding to that row.
 
+![alt text](attention-combining-value-vectors.png)
+
 **Masking** Sometimes we mask the output of an attention operator to avoid certain positions from attending to each other.
 For example, in the decoder we may not wan't tokens to attend to "future" tokens.
 A mask is typically a matrix M of `True` and `False` values of shape (n, m). Each row i indicates which keys the query i
@@ -1098,6 +1100,11 @@ The single query vector attends only to the first two keys.
 Computationally, it will be much more efficient to use masking than to compute attention on
 subsequences, and we can do this by taking the pre-softmax values `(Q @ K.T) / sqrt(d_k)` and adding a `-inf` to
 any entry of the mask matrix that is False. (Note `exp(-inf) == 0`)
+
+
+Of course, we have to remember that when implementing these operations, they'll be batched. Each
+batch item is independent, so we'd be computing scaled dot-product attention in parallel across
+independent items. I'll use `einsum` for the batched matrix multiplication for the simplicity.
 
 I implemented the `scaled_dot_product_attention` function in [`nn_modules.py`](./nn_modules.py).
 

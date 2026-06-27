@@ -39,13 +39,42 @@ def scaled_dot_product_attention(queries: torch.Tensor, keys: torch.Tensor, valu
     Returns:
         Tensor of shape (batch_size, ..., n, d_v)
     """
+    # In each batch item, there are n query vectors of size d_k and m key vectors for size d_k
+    # where n = source sequence length, m = target sequence length
+    # Since this is a generalized utility function, we don't force the assumption that n == m.
+
+    # Computes Q @ K.T
     dot_product = einsum(queries, keys, "batch_size ... n d_k, batch_size ... m d_k -> batch_size ... n m")
     scaled_dot_product = dot_product / math.sqrt(queries.shape[-1])
+
+    # For each item in the batch, the dot product computes a matrix Q @ K.T of shape (n, m)
+    # where each element i_j shows how strongly query i relates to key j.
+    # So each row i shows how strongy query i relates to each key in the target sequence.
     if mask is not None:
-        # Set locations we don't want to mask out to -inf
-        # because exp(inf) == 0, so the corresponding query, key and value will not contribute to the attention.
+        # Set locations we want to mask out to -inf
+        # Where mask is false, the the corresonding query key should not attend to the key, so we want
+        # the dot product value at that position to be 0, and we do that by setting each position
+        # where mas is false to -inf
+        # because exp(-inf) == 0, so the corresponding query, key and value will not contribute to the attention.
         scaled_dot_product = scaled_dot_product.masked_fill(~mask, -torch.inf)
+
+    # We use softmax to normalize the weights into probability distributions that sum up to 1
+    # for each row each in the n*m matrix. i.e. for each row in the n*m matrix, the column values
+    # in that row should sum up to 1.
+    # Since we're applying softmax against the m columns, that's the last dimension
+    # hence setting dim to -1
     weights = softmax(scaled_dot_product, dim=-1)
+
+    # In each batch multiply the n*m weights matrix by the m*d_v values matrix (m value vectors of size d_v)
+    # This results in an n*d_v output matrix, where each row i is a merged/combined value vector that's a 
+    # weighted average of all the value vectors based on the weights corresponding to query i.
+    # So each row is a different combination of the value vectors based on the weights corresponding
+    # to that row, and these weights represents how strongly the position corresponding to that row
+    # attends to each target position's key and value.
+    # And by weighted average, we mean that each component j of the output row i is a weighted average
+    # of the kth component of each the m value vectors, based on the m weights in row i
+    # so the stronger the query i attends to key j, the more vector j's d_v components will contribute
+    # to the output vector
     result = einsum(weights, values, "batch_size ... n m, batch_size ... m d_v -> batch_size ... n d_v")
     return result
 
