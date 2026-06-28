@@ -33,8 +33,11 @@ def scaled_dot_product_attention(queries: torch.Tensor, keys: torch.Tensor, valu
         queries (torch.Tensor): Batch of query matrices Q. Shape = (batch_size, ..., n, d_k)
         keys    (torch.Tensor): Batch of key matrices K. Shape = (batch_size, ..., m, d_k)
         values  (torch.Tensor): Batch of value matrics V. Shape = (batch_size, ..., m, d_v)
-        mask     (torch.Tensor|None): Optional boolean mask to prevent specific queries from attending to specific keys.
-            If mask[i, j] is True, then query i should attend to key j, otherwise it should not (i.e. the weight associated with query and k should be 0).
+        mask    (torch.Tensor|None): Optional boolean mask to prevent specific queries from attending to specific keys. Shape = (n, m)
+            If mask[i, j] is True, then query i should attend to key j, otherwise it should not
+            (i.e. the weight associated with query and k should be 0).
+    
+    Where n = length of source sequence, m = length of target sequence
     
     Returns:
         Tensor of shape (batch_size, ..., n, d_v)
