@@ -1101,6 +1101,12 @@ Computationally, it will be much more efficient to use masking than to compute a
 subsequences, and we can do this by taking the pre-softmax values `(Q @ K.T) / sqrt(d_k)` and adding a `-inf` to
 any entry of the mask matrix that is False. (Note `exp(-inf) == 0`)
 
+![alt text](attention-masking-part-1.png)
+
+![alt text](attention-masking-part-2.png)
+
+![alt text](attention-masking-part-3.png)
+
 
 Of course, we have to remember that when implementing these operations, they'll be batched. Each
 batch item is independent, so we'd be computing scaled dot-product attention in parallel across
