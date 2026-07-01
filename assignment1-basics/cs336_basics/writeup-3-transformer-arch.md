@@ -887,7 +887,7 @@ Related papers:
 
 - [RoFormer: Enhacing transformers with rotatary position embedding, 2021, Jianlin Su et al.](https://arxiv.org/abs/2104.09864)
 
-### 3.4.3 Scaled Dot-Product Attention
+### 3.4.4 Scaled Dot-Product Attention
 
 In this section we'll implemented scaled dot-product attention based on the original transformer Paper.
 
@@ -1136,3 +1136,31 @@ tests/test_model.py::test_4d_scaled_dot_product_attention PASSED
 ================================================================= 1 passed, 47 deselected in 0.09s ==================================================================
 ```
 
+### 3.4.5 Causal Multi-Head Self-Attention
+
+In this section, we'll implement multi-head self-attention as described in the Attention Is All You need Paper. But before we get into that, I'd like to break down the terms Causal Multi-Head Self-Attention:
+
+- **Self-Attention**: We'll be applying attention on the input sequence, i.e. tokens in the input sequence attend to other tokens in the same input sequence. Queries, keys and values come from the same sequence. This is distinct from cross-attention where we have different source and target sequences.
+- **Multi-Head**: We'll concatenate different independent attention blocks or heads over the same sequence instead of having just one attention operation.
+- **Causal**: Since our task is next-token-prediction given current sequence of tokens, our training will treat a token in the sequence as target taken given the tokens in the context that precede it. To prevent "cheating", we'll prevent the target token from attending to tokens that come after it in the sequence.
+
+Why multiple attention heads? We can consider that the attention mechanism discovers relationships between words/tokens and which tokens have the strongest relationships with each other. In language, there are many types of inter-word relationships that are simultaneously at play in a given sentence.
+
+For example, given the sentence "The animal didn't cross the street because it was too tired."
+
+When we read "it", we can ask a lot of questions to reason about what it refers to:
+
+- Which noun is closest?
+- Which noun makes grammatical sense?
+- Which noun is capable of being tired?
+- What's the overall topic of the paragraph?
+- What happened previously?
+
+A single attention mechanism has to mix all these into one set of attention weights. For each token, it computes a single
+probability distribution over every other word. Yet in reality, given some word or token A, one token B may have the strongest
+attention when considering some lens or type of relationship, while another token C has the strongest attention when looking
+at a different lense. We lose out on the ability to properly capture these different lenses if we only have a single
+probability distribution per source word.
+
+With multi-head attention, instead of forcing a single attention mechanism to solve every problem, we give several
+independent attention mechanisms (attention heads) different parameters and let each specialize.
