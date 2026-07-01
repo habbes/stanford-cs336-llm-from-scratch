@@ -1208,5 +1208,28 @@ Learnable parameters are:
 - `W_V` of shape `(h * d_v, d_model)`
 - `W_O` of shape `(d_model, h * d_v)`
 
-Since Q, K and V sliced in the multi-head attention operation, we can think og `W_Q`, `W_K`, `W_V` as being separated for each
+Since Q, K and V sliced in the multi-head attention operation, we can think of `W_Q`, `W_K`, `W_V` as being separated for each
 head along the output dimension.
+
+Let's break this down a bit further.
+
+Let's start by looking at how the query matrix is produced from the `W_Q` matrix. First, let's assume that `x` is a single token's embedding.
+So it's a vector of size `d_model`. Then later we'll expand the reason to support the entire sequence.
+
+![alt text](compute-q-from-wq-and-x.png)
+
+This shows that we'll have a different query vector of size d_k per head. While we demonstrate the computation for Q, a similar process applies for K and V.
+
+No let's see how this applies to a sequence of `n` input token embeddings. Remember that in the attention operation, we expect Q to be a matrix of query vectors, a separate query vector per token position. Now in this case we going to have a different query vector per head and per token position.
+To compute this, we'll simply apply the `W_Q` weights to the entire input sequence.
+
+Now, we expect the input sequence `x` to be a matrix of shape `(n, d_model)` (n input token embeddings of size `d_model`). Note that if
+multiply `W_K @ x` as mentioned above the matrix multiplication won't work cause the dimensions don't line up, i.e. `(h * d_k, d_model) @ (n, d_model)`.
+So we would need to transpose `x` to get `W_K @ x.T` with shapes `(h * d_k, d_model) @ (d_model, n)`, we can treat x.T as n column vectors.
+Alternatively, we could transpose `W_K` and swap the operations: `x @ W_K.T` with shapes `(n, d_model) @ (d_model, h * d_k)`. The two return
+conceptually equivalent results. In this breakdown we'll go with the first approach of transposing `x` because it matches the order operands in the formula provided in the assignment brief. However, during implementation we'll use `einsum` to align the shapes automatically for simplicity.
+
+![alt text](compute-multi-head-q-for-full-sequence-part-1.png)
+
+![alt text](compute-multi-head-q-for-full-sequence-part-2.png)
+
