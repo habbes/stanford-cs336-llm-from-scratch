@@ -1164,3 +1164,31 @@ probability distribution per source word.
 
 With multi-head attention, instead of forcing a single attention mechanism to solve every problem, we give several
 independent attention mechanisms (attention heads) different parameters and let each specialize.
+
+Now let's discuss the formulae.
+
+#### MultiHead
+
+We define MultiHead function as:
+
+```python
+MultiHead(Q, K, V) = Concat(head_1, head_2, ..., head_h)
+```
+
+Where
+
+```python
+head_i = Attention(Q_i, K_i, V_i)
+```
+
+Here `Q` can be considered a concatenation of h indepedent query sub-matrices, same for `K`, and `V`.
+
+Therefore `Q_i`, `K_i` and `V_i` are slice number `i` of [1, h] of size `d_k` of the embedding dimension of `Q` and `K` and size `d_v` for `V`.
+
+Where `Attention(Q_i, K_i, V_i)` is the scaled-dot product attention operation we implemented in the previous section: `softmax(Q_i @ K_i/sqrt(d_k))V`.
+
+We have `h` heads, each one with its own independent set of query, key and value matrices independently computing the attention operation. Then the results are concatenated into a single matrix.
+
+Conceptually, we'd expect the output of the `MultiHead` operation to have the shape (where n is the sequence length):
+
+![alt text](multi-head-attention-output-shape.png)
