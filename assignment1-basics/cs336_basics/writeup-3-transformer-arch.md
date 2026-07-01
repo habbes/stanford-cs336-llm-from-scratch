@@ -1192,3 +1192,21 @@ We have `h` heads, each one with its own independent set of query, key and value
 Conceptually, we'd expect the output of the `MultiHead` operation to have the shape (where n is the sequence length):
 
 ![alt text](multi-head-attention-output-shape.png)
+
+#### MultiHeadSelfAttention
+
+To compute the `MultiHeadSelfAttention` function for a given input, we create matrices of learnable parameters that apply to the input to produce query, key and value matrices that we pass as input to the `MultiHead` operation:
+
+```python
+MultiHeadSelfAttention(x) = W_O @ MultiHead(W_Q @ x, W_K @ x, W_V @ x)
+```
+
+Learnable parameters are:
+
+- `W_Q` of shape `(h * d_k, d_model)`
+- `W_K` of shape `(h * d_k, d_model)`
+- `W_V` of shape `(h * d_v, d_model)`
+- `W_O` of shape `(d_model, h * d_v)`
+
+Since Q, K and V sliced in the multi-head attention operation, we can think og `W_Q`, `W_K`, `W_V` as being separated for each
+head along the output dimension.
