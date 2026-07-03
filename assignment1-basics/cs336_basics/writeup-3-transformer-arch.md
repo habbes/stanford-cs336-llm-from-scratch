@@ -1223,13 +1223,55 @@ This shows that we'll have a different query vector of size d_k per head. While 
 No let's see how this applies to a sequence of `n` input token embeddings. Remember that in the attention operation, we expect Q to be a matrix of query vectors, a separate query vector per token position. Now in this case we going to have a different query vector per head and per token position.
 To compute this, we'll simply apply the `W_Q` weights to the entire input sequence.
 
-Now, we expect the input sequence `x` to be a matrix of shape `(n, d_model)` (n input token embeddings of size `d_model`). Note that if
+**Notes about shape**: Now, we expect the input sequence `x` to be a matrix of shape `(n, d_model)` (n input token embeddings of size `d_model`). Note that if
 multiply `W_K @ x` as mentioned above the matrix multiplication won't work cause the dimensions don't line up, i.e. `(h * d_k, d_model) @ (n, d_model)`.
 So we would need to transpose `x` to get `W_K @ x.T` with shapes `(h * d_k, d_model) @ (d_model, n)`, we can treat x.T as n column vectors.
 Alternatively, we could transpose `W_K` and swap the operations: `x @ W_K.T` with shapes `(n, d_model) @ (d_model, h * d_k)`. The two return
-conceptually equivalent results. In this breakdown we'll go with the first approach of transposing `x` because it matches the order operands in the formula provided in the assignment brief. However, during implementation we'll use `einsum` to align the shapes automatically for simplicity.
+conceptually equivalent results. But the row-vectors approach (`x @ W_K.T`) aligns better with PyTorch's row-wise memory ordering. In this breakdown we'll go with the first approach of transposing `x` because it matches the order operands in the formula provided in the assignment brief. However, during implementation we'll use `einsum` to align the shapes automatically for simplicity. This is a recap of what was mentioned remarks about mathematical notation and memory ordering.
 
 ![alt text](compute-multi-head-q-for-full-sequence-part-1.png)
 
 ![alt text](compute-multi-head-q-for-full-sequence-part-2.png)
 
+Now that we know how to compute the `Q` matrix (and subsequently `K` and `V`), we can pass these inputs to the `MultiHead` function.
+
+```python
+MultiHead(W_Q @ x.T, W_K @ x.T, W_V @ x.T) = MultiHead(Q, K, V)
+```
+
+where `Q` contains `n` query vectors per head.
+
+Remember that multi head operation is equivalent to conctatenating h attention operations:
+
+```python
+MultiHead(Q, K, T) = concat(Attn(Q_1, K_1, V_1), Attn(Q_2, K_2, V_2), ... Attn(Q_h, K_h, V_h))
+```
+
+The result is an output matrix `O` which contains n "composite" value vectors per head, i.e. `(h * d_v, n)`.
+By composite value vector, I mean each value vector is a weighted average of the original value vectors in the same
+head based on the attention weights.
+
+Then to complete the `MultiHeadSelfAttention` function, we apply the `W_O` weights matrix transformation to
+output matrix `O` of composite value vectors.
+
+![alt text](multi-head-self-attention-breakdown-part-1.png)
+![alt text](multi-head-self-attention-breakdown-part-2.png)
+
+Remember `W_O` is a matrix of shape `(d_model, h * d_v)` and `O` is (`h * d_v`, `n`). The `W_Q`, `W_K`, `W_V` matrixes extract
+query, key and value vectors out of the input embedding space X where each object is a `d_model` vector. The `W_O` matrix
+learns how to combine the information discovered by the different heads into a single representation that live's in the model's embedding representation space, i.e `(n, d_model)` matrix. `W_O` mixes information across heads, otherwise they're isolated/independent from each other.
+
+So in summary, the whole multi-head self attention operation transforms the input x, which contain token embeddings that may contain some intrinsic representation of a word, into some output y where the embedding vectors now encode information about the word in the context of the sentence. i.e: **Turn independent token representations into context-dependent token representations.**
+
+Of course this is a simplistic and flawed explanation, we'll have many transformer layers, and the initial embedding vectors are intiailized randomly, etc. But I think this explanation helps build intuition about the process.
+
+Let's take our example sentence from earlier: "The animal didn't cross the street because it was too tired."
+
+Lets assume that the word "it" is a token represented by some embedding vector `x_i`. 
+Before attention, this embedding vector could encode the following semantic information: 
+- "third person pronoun usually referring to an object, can be used as a verb or object".
+
+After applying the multi-head self attention, `x_i` is transformed into an embedding vector `y_i` that encodes the information like:
+- "refers to the animal"
+- "subject of 'was'"
+- "associated with tired"
