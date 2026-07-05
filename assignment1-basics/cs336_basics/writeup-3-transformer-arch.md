@@ -1263,6 +1263,8 @@ learns how to combine the information discovered by the different heads into a s
 
 So in summary, the whole multi-head self attention operation transforms the input x, which contain token embeddings that may contain some intrinsic representation of a word, into some output y where the embedding vectors now encode information about the word in the context of the sentence. i.e: **Turn independent token representations into context-dependent token representations.**
 
+![alt text](mhsa-output-matrix-mixing-different-heads.png)
+
 Of course this is a simplistic and flawed explanation, we'll have many transformer layers, and the initial embedding vectors are intiailized randomly, etc. But I think this explanation helps build intuition about the process.
 
 Let's take our example sentence from earlier: "The animal didn't cross the street because it was too tired."
@@ -1275,3 +1277,5 @@ After applying the multi-head self attention, `x_i` is transformed into an embed
 - "refers to the animal"
 - "subject of 'was'"
 - "associated with tired"
+
+So `W_Q`, `W_K` and `W_V` learn different spaces in which different notions of similarity and information are useful. `W_O` learns how to fuse the different heads' outputs.
