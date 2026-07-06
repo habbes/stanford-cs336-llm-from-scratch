@@ -1279,3 +1279,48 @@ After applying the multi-head self attention, `x_i` is transformed into an embed
 - "associated with tired"
 
 So `W_Q`, `W_K` and `W_V` learn different spaces in which different notions of similarity and information are useful. `W_O` learns how to fuse the different heads' outputs.
+
+#### Causal Masking
+
+We should prevent the model from attending from future tokens in the sequence. For example, if we have the sequence `t_1` to `t_n` and we want
+to predict the next token for the prefix `t_1`, ... `t_i` (where `i` < `n`), then the model must not attend to tokens `t_i+1`... `t_n`. Otherwise,
+information about the identity of the true token will leak into the attention parameters and trivialize the training, it's basically cheating.
+At inference time we won't have the target token available in advance, we have to predict it solely from the prefix tokens. So to recreate these
+conditions during training, we must prevent attention from seeing future tokens.
+
+We can achieve this efficiently by applying a mask in the attention layer. Basically, for each token position we mask out all the token positions that come after it.
+
+Since masking is applied at the attention layer, after `Q @ T/sqrt(dk)`, just before the `softmax` operation, I find it helpful to take
+another look at the `Q @ T` matrix multiplication in the multi-headed setting. The key detail to remember is that we're performing
+the `Q@T` matrix multiplication independently for each head, also softmax independently for each head, and masking independently
+in each head (using the same matrix mask). So each head will compute `softmax(causal_mask(Q@T/sqrt(dk)))`. So we won't compute
+`softmax` of an entire row of the full matrix `Q` such that the entire row sums to 1. Instead, we'll treat the full `Q` matrix
+as collection of `h` inpdendent sub-matrices each of size `(n, dk)`, and treat `K` and `V` similarly.
+
+So basically, we're treating `h` as another batch dimension.
+So instead of looking at the matrix `Q` as `(b, n, h * dk)`, we can look at it at as
+`(b, h, n, dk)` where b is the overall batch dimension (`b` input sequences), and `h` a sub-batch dimension that performs
+h independent transformations over the same input sequence `x`.
+
+So at the first step of attention, we have the full `Q -> (n, h * dk)` and full `K.T` `(h * dk, n)`, we get a result matrix
+of size `(n, h * n)`. Internally, the matrix multiply are done in batches:  `Q -> (h, n, dk)`, `K.T -> (h, dk, n)`, and the
+result in batches `(h, n, n)`. So the output is h batches of `(n, n)` matrices of unnormalized scores.
+
+![alt text](multi-head-batched-queries-keys-breakdown.png)
+
+Now that we have h `(n, n)` matrices, remember that for each `(n, n)` matrix, each row i represents the unnormalize weigth of the relationship
+between each token position and the token position i, and subsequently how strongly token position i should attend to each other token position.
+
+Remember, in causal masking we don't want token `i` to attend to future tokens during training because we want to learn to predict token `i + 1`.
+So for each row `i`, we want to mask out all the tokens `j > i` (i.t. `j = i + 1`, `j = i + 2`, etc.). This translates to a triangle matrix
+of size `(n, n)` that we can broadcast to each head `h` (and also the same mask can be applied in each batch `b`).
+
+For a `(3, 3)` matrix, the mask would look like:
+
+```python
+M = [
+  True False False
+  True True  False
+  True True  True
+]
+```
