@@ -304,23 +304,25 @@ class RotaryPositionalEmbedding(nn.Module):
         return result
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, **kwargs):
+    def __init__(self, d_model: int, num_heads: int, device: torch.device = None, dtype: torch.dtype|None = None):
         """
         Constructs the Multi-Head Causal Self-Attention module.
 
         Args:
-            d_model: size of the input embedding dimension
-            num_heads: number of heads
+            d_model (int): size of the input embedding dimension
+            num_heads (int): number of heads
+            device (torch.device | None): Device to store the parameters on
+            dtype: (torch.dtype | None): Data type of the parameter
         """
         super().__init__()
         self.d_model = d_model
         self.num_heads = num_heads
         d_k = d_model // num_heads
         d_v = d_k
-        self.Wq = Linear(d_model, num_heads * d_k)
-        self.Wk = Linear(d_model, num_heads * d_k)
-        self.Wv = Linear(d_model, num_heads * d_v)
-        self.Wo = Linear(num_heads * d_v, d_model)
+        self.Wq = Linear(d_model, num_heads * d_k, device=device, dtype=dtype)
+        self.Wk = Linear(d_model, num_heads * d_k, device=device, dtype=dtype)
+        self.Wv = Linear(d_model, num_heads * d_v, device=device, dtype=dtype)
+        self.Wo = Linear(num_heads * d_v, d_model, device=device, dtype=dtype)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -332,10 +334,10 @@ class MultiHeadSelfAttention(nn.Module):
             where head_i = Attention(Q_i, K_i, V_i)
 
         Args:
-            x: batched input sequence, shape (b, n, d_model)
+            x (torch.Tensor): batched input sequence, shape (b, n, d_model)
         
         Returns:
-            y: attention-aware sequence, shape (b, n, d_model)
+            y (torch.Tensor): attention-aware sequence, shape (b, n, d_model)
         """
         # Use the weight parameters Wq, Wk, and Wv
         # to compute the different heads of queries, keys and values
