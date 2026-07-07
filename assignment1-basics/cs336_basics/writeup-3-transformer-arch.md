@@ -1324,3 +1324,24 @@ M = [
   True True  True
 ]
 ```
+
+![alt text](causal-mask-triangular-matrix.png)
+
+The following breakdown shows how the (n, n) triangular matrix mask is broadcoasted across the h heads, and applying
+the mask per head before softmax is computed. The results are `h` `(n, n)` triangular weight matrices filled with
+0's in the upper triangles to ensure token positions don't attend to future token positions in each head.
+
+![alt text](causal-masking-in-multi-head-attention-layer.png)
+
+Finally, we take the resulting `h` `(n, n)` matrices and perform per-head matrix multiplications with the `h` `(n, d_v)`
+value matrices to get the `h` `(n, d_v)` output of merged value matrices.
+
+![alt text](multi-head-causal-weights-value-matrices-multiplication.png)
+
+In the diagram above, it seems like I arranged the scores matrix and V matrix in a way that doesn't align, i.e. `(n, h * n)`
+and `(n, h * dv)`. However, remember that the `h` dimension is batch dimension. We're not doing a full matrix multiplication
+between the unnormalized scores and V, we're doing `h` independent matrix multiplications of `(n, n)` and `(n, d_v)` each.
+So techically whether I draw the h dimensions across the vertical or horizontal axes is just for illustration only, it
+doesn't affect which matrix is multiplied with which.
+
+During implementation, we'll reshape the tensors such that the matrices to be multiplied are in the innermost dimensions, e.g. `(h, n, n)` and `(h, n, d_v)`. So a more accurate visual representation would be to have h across the vertical axis.
