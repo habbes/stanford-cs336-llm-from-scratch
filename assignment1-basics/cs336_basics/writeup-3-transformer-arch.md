@@ -1345,3 +1345,7 @@ So techically whether I draw the h dimensions across the vertical or horizontal 
 doesn't affect which matrix is multiplied with which.
 
 During implementation, we'll reshape the tensors such that the matrices to be multiplied are in the innermost dimensions, e.g. `(h, n, n)` and `(h, n, d_v)`. So a more accurate visual representation would be to have h across the vertical axis.
+
+However, once we have the output matrix of "attention-aware" value vectors, we need to do a full matrix multiplication with `W_O`, and remember
+that this transformation fuses the heads. So at this point we'll no longer treat `h` as batch dimension of independent heads, but
+we'll treat `O` as a matrix of shape `(n, h * d_v)` (or `(h * d_v, n)`) and `W_O` as `(h * d_v, d_model)` to get final result matrix `(n, d_model)`
