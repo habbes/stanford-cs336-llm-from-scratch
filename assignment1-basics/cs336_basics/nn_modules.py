@@ -303,3 +303,85 @@ class RotaryPositionalEmbedding(nn.Module):
         result = einsum(x, rm, "... n_positions in_features, n_positions out_features in_features -> ... n_positions out_features ")
         return result
 
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, **kwargs):
+        """
+        Constructs the Multi-Head Causal Self-Attention module.
+
+        Args:
+            d_model: size of the input embedding dimension
+            num_heads: number of heads
+        """
+        super().__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        d_k = d_model // num_heads
+        d_v = d_k
+        self.Wq = Linear(d_model, num_heads * d_k)
+        self.Wk = Linear(d_model, num_heads * d_k)
+        self.Wv = Linear(d_model, num_heads * d_v)
+        self.Wo = Linear(num_heads * d_v, d_model)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Applies MultiHeadSelfAttention to the sequence:
+
+        y = MultiHead(x @ Wq, x @ Wk, x @ Wv) @ Wo
+
+        MultiHead(Q, K, V) = Concat(head_1, ..., head_h)
+            where head_i = Attention(Q_i, K_i, V_i)
+
+        Args:
+            x: batched input sequence, shape (b, n, d_model)
+        
+        Returns:
+            y: attention-aware sequence, shape (b, n, d_model)
+        """
+        # Use the weight parameters Wq, Wk, and Wv
+        # to compute the different heads of queries, keys and values
+        # We'll have a query vector per head per token position in batch item
+        # Assuming x -> (b, n, d_model)
+        # TODO: consider using a single weight matrix so you only need
+        # one matrix multiplication to compute Q, K and V.
+        Q = self.Wq(x) # Q -> (b, n, h * d_k)
+        K = self.Wk(x) # K -> (b, n, h * d_k)
+        V = self.Wv(x) # V -> (b, n, h * d_v)
+
+        # Note, we should see the h * d_k dimension in Q as h independent query vectors of size d_k
+
+        # For each input sequence in the batch, we want to compute attention
+        # independently in each head. So we compute h separate attention operations
+        # in parallel per batch item. We don't multiply an entire row of Q with
+        # an entire column of K.T, instead we multiply a row in one head of Q
+        # with a column in the corresponding head in K.T. We also perform masking
+        # and softmax independently per head, and so on and so forth.
+        # For this reason, we should treat h as another batch dimension, i.e.
+        # a sub-array that contains h (n, d_k) matrices.
+        # This will make masking and scale_dot_product_attention functions convenient
+        # since they're already design to operate on the last 2 dimensions and broadcast
+        # across batches.
+        query_heads = rearrange(Q, "... n (h d_k) -> ... h n d_k", h=self.num_heads)
+        key_heads = rearrange(K, "... n (h d_k) -> ... h n d_k", h=self.num_heads)
+        value_heads = rearrange(V, "... n (h d_v) -> ... h n d_v", h=self.num_heads)
+
+        seq_len = x.shape[-2]
+        causal_mask = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool))
+
+        multi_head_attention = scaled_dot_product_attention(
+            queries=query_heads,
+            keys=key_heads,
+            values=value_heads,
+            mask=causal_mask
+        ) # -> (b, h, n, d_v)
+
+        # After we've computed multi head attention, which results in
+        # h independent heads of attention-aware (n, d_v) matrices,
+        # we want to unwrap the heads into a single matrix of shape (n, h * d_v).
+        # This allows us to apply the transformation Wo to the matrices.
+        # We can think of Wo as a fusion of the different heads, that learns
+        # to mix the information indepdently learned by different heads into
+        # a merged representation in the d_model embedding space
+        o = rearrange(multi_head_attention, "... h n d_v -> ... n (h d_v)")
+        y = self.Wo(o) # y -> (b, n, d_model)
+        return y
+        

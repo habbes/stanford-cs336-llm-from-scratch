@@ -1349,3 +1349,32 @@ During implementation, we'll reshape the tensors such that the matrices to be mu
 However, once we have the output matrix of "attention-aware" value vectors, we need to do a full matrix multiplication with `W_O`, and remember
 that this transformation fuses the heads. So at this point we'll no longer treat `h` as batch dimension of independent heads, but
 we'll treat `O` as a matrix of shape `(n, h * d_v)` (or `(h * d_v, n)`) and `W_O` as `(h * d_v, d_model)` to get final result matrix `(n, d_model)`
+
+**Implementating casual multi-head self-attention**
+
+I've implemented the causal multi-head self-attention in the module `MutliHeadSelfAttention` module in [`nn_modules.py`](./nn_modules.py).
+
+This doesn't apply RoPE yet. So rope-related tests are expected to fail.
+
+To test:
+
+```sh
+uv run pytest -k test_multihead_self_attention
+```
+
+```sh
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 46 deselected / 2 selected                                                                                                                     
+
+tests/test_model.py::test_multihead_self_attention PASSED
+tests/test_model.py::test_multihead_self_attention_with_rope FAILED
+```
+
+Note that I used 3 `Linear` weights matrices to compute the projections for `Q`, `K`, and `V`. This is aligns
+with the instructions which say we should use a total of 3 matrix multiplications for this. But as a stretch
+goal, we should combine them in a single matrix application. I'll revist this stretch goal after I got RoPE
+working.
