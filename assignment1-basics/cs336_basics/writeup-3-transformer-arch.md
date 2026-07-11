@@ -777,6 +777,8 @@ Two of the key differences between RoPE and the original PE is that:
 - RoPE is applied directly to the attention mechanism, not on token embeddings
 - RoPE cares about relative positions, not really about absolute positions of tokens.
 
+**Note**: I found this video useful in explaining RoPE: [How Rotary Position Embedding Supercharges Modern LLMs [RoPE]](https://www.youtube.com/watch?v=SMBkImDWOyQ).
+
 In the original PE, content (input embeddings) and positions are mixed "too early"
 in the pipeline, given that attention is computed a bit later. Attention is still
 based on content (Q and K vectors) and only indirectly/implicitly extracts relative
@@ -1378,3 +1380,61 @@ Note that I used 3 `Linear` weights matrices to compute the projections for `Q`,
 with the instructions which say we should use a total of 3 matrix multiplications for this. But as a stretch
 goal, we should combine them in a single matrix application. I'll revist this stretch goal after I got RoPE
 working.
+
+#### Applying RoPE
+
+Before we apply RoPE to the MultiHeadSelfAttention block, let me take another step back to remember why
+we use RoPE.
+
+I found this video to be very helpful: [**How Rotary Position Embedding Supercharges Modern LLMs [RoPE]**](https://www.youtube.com/watch?v=SMBkImDWOyQ).
+
+As discussed in the attention sections, for a given position `i`, we take the query vector at that position `q_i` and perform
+a dot product with the key vector of every token position `j`, then perform softmax across the m weights and use these
+weights to compute a weighted sum of the value vectors across all the token positions, which results in a merged
+context-aware combined value vector corresponding to the query position.
+
+![alt text](quick-attention-operations-recap.png)
+
+The important thing to notice here is that the dot product of the query and each key depends only on the contents of the vectors, not their positions.
+And we know from the previous section that the query and key vectors are derived from the weight matrices `W_Q` and `W_K` and token emebeddings
+in the input sequence. In a given training or inference pass, `W_Q` and `W_K` are fixed, since their values are only updated during backprop.
+This means that given the same sentence or token sequence, we'll get the exact same exact query vectors, key vectors and value vectors. If the same
+sentence or token sequence is shuffled such that the contents are in a different order, then we'll get the same queries, keys and values,
+but also in a different order (1:1 mapping between tokens and query, keys, values). Where am I getting at: for each token, we'll get
+the same output vector regardless of the position of the token in the sequence, since the attention mechanism so far depends only on the
+content of the token and not the position.
+
+Concretely speaking, let's say we have the sentence (consider each word a separate token):
+
+A: I bought an apple watch
+
+Here we can infer that apple refers to the tech company, based on the relationship between "apple" and "watch".
+
+Now let's shuffle the sentence:
+
+B: watch an apple I bought
+
+In this sentence the query, key and value vectors associated with each token will be the same as in the previous sentence
+even though the meaning has changed. `apple` and `watch` mean different things in sentences A and B, but the attention
+mechanism will compute the same weights between the two tokens in both sentences.
+
+This is the problem positional encoding tries to address. The absolute positional encoding used in the original
+attention paper generates a unique sinusoidal vector for each token position, so the PE is a function of positions. Then
+it's mixed with the input token embedding via vector addition. The problem with this approach is that encoding
+is very noisy to shifts.
+
+Let's take the following sentences:
+
+A: I walk my dog every day
+
+B: every day I walk my dog
+
+They mean rougly the same thing, we kept the relative order of related words the same, but their exact positions
+in the sequence has changed, which would lead to vastly different positional encodings since positional encodings are based
+on absolute positions.
+
+RoPE takes a different approach by applying positional encodings to the query and key vectors, not to the positions.
+And the encodings are based on rotating the vectors based on an angle theta. Now the angle of rotation is based on the token
+position. But it turns out that the effect of rotating a query vector based on its position i and key vector based on its position j
+within the context of the attention computation, the aggregate effect is a rotation based on the difference between the angle at j and the angle at i.
+Therefore, this is encoding the relative position or distance between tokens more directly rather than their exact positions in the sequence.
