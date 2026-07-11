@@ -1486,3 +1486,33 @@ as before the shift.
 
 Now we just need to show that if apply R[i] to q_i, and R[j] to k_j, and do the dot product
 of the result, we also end up applying  R[j - i] (TODO: need to demonstrate this mathematically)
+
+
+**Implement multi-head self attention with RoPE**
+
+I've implemented RoPE in the `MultiHeadSelfAttention` module in [`nn_modules.py`](./nn_modules.py) by adjusting
+the class to accept an optional instance of `RotaryPositionalEmbedding` in the constructor, and the
+token positions to rotate in the `forward` method. When both of these are provided, then the
+rope function is applied to `queries` and `keys` matrices after they've been re-arranged to the shape `(b, h, n, d_k)`
+such that RoPE is applied to the inner `(n, d_k)` dimensions in each head in parallel.
+
+To test:
+
+```sh
+uv run pytest -k test_multihead_self_attention
+```
+
+```sh
+uv run pytest -k test_multihead_self_attention
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 46 deselected / 2 selected                                                                                                                     
+
+tests/test_model.py::test_multihead_self_attention PASSED
+tests/test_model.py::test_multihead_self_attention_with_rope PASSED
+
+================================================================= 2 passed, 46 deselected in 0.09s ==================================================================
+```

@@ -188,7 +188,7 @@ class FFSwiGLU(nn.Module):
         return y
 
 class RotaryPositionalEmbedding(nn.Module):
-    def __init__(self, theta: float, d_k: int, max_seq_len: int, device: torch.device=None):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int,  device: torch.device=None):
         """
         Constructs the RoPE module and create buffers if needed. This module
         can be reused to perform rotations for all query or key vectors in any layers.
@@ -300,11 +300,11 @@ class RotaryPositionalEmbedding(nn.Module):
         # For each input vector in the batch x in each token position, we want to perform
         # matrix multiplication R[pos] @ x[batch, pos].T
         # that's equivalent to x[batch, pos] @ R[pos].T
-        result = einsum(x, rm, "... n_positions in_features, n_positions out_features in_features -> ... n_positions out_features ")
+        result = einsum(x, rm, "... n_positions in_features, ... n_positions out_features in_features -> ... n_positions out_features ")
         return result
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, device: torch.device = None, dtype: torch.dtype|None = None):
+    def __init__(self, d_model: int, num_heads: int, rope: RotaryPositionalEmbedding | None = None, device: torch.device = None, dtype: torch.dtype|None = None):
         """
         Constructs the Multi-Head Causal Self-Attention module.
 
@@ -323,8 +323,9 @@ class MultiHeadSelfAttention(nn.Module):
         self.Wk = Linear(d_model, num_heads * d_k, device=device, dtype=dtype)
         self.Wv = Linear(d_model, num_heads * d_v, device=device, dtype=dtype)
         self.Wo = Linear(num_heads * d_v, d_model, device=device, dtype=dtype)
+        self.rope = rope
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, rope_token_positions: torch.Tensor = None) -> torch.Tensor:
         """
         Applies MultiHeadSelfAttention to the sequence:
 
@@ -335,6 +336,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         Args:
             x (torch.Tensor): batched input sequence, shape (b, n, d_model)
+            rope_token_positions (torch.Tensor): collection of indices corresponding to token positions that RoPE module should rotate.
         
         Returns:
             y (torch.Tensor): attention-aware sequence, shape (b, n, d_model)
@@ -365,6 +367,14 @@ class MultiHeadSelfAttention(nn.Module):
         query_heads = rearrange(Q, "... n (h d_k) -> ... h n d_k", h=self.num_heads)
         key_heads = rearrange(K, "... n (h d_k) -> ... h n d_k", h=self.num_heads)
         value_heads = rearrange(V, "... n (h d_v) -> ... h n d_v", h=self.num_heads)
+
+        if self.rope and rope_token_positions is not None:
+            # Apply rope if provided. This will rotate the query and key
+            # vectors based on their token positions so that
+            # we have relative position information when we perform
+            # the attention mechanism
+            query_heads = self.rope(query_heads, rope_token_positions)
+            key_heads = self.rope(key_heads, rope_token_positions)
 
         seq_len = x.shape[-2]
         causal_mask = torch.tril(torch.ones((seq_len, seq_len), dtype=torch.bool))
