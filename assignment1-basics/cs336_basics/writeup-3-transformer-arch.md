@@ -1438,3 +1438,51 @@ And the encodings are based on rotating the vectors based on an angle theta. Now
 position. But it turns out that the effect of rotating a query vector based on its position i and key vector based on its position j
 within the context of the attention computation, the aggregate effect is a rotation based on the difference between the angle at j and the angle at i.
 Therefore, this is encoding the relative position or distance between tokens more directly rather than their exact positions in the sequence.
+
+Remember that RoPE treats the vector q (and also k) as a collection of coordinate pairs in 2D space, i.e. a collection of `d_k/2` 2D points,
+and then uses a 2D rotation matrix to rotate each point by an angle that's based on the token position as well as the component position in the vector
+(lower components rotate at a higher frequency across positions and higher components rotate at a lower position across componets). But for simplicity,
+we'll consider the query vector to only have two dimensions (`d_k` = 2), i.e. 1 2D point. And we can simplify RoPE as a single
+rotation matrix that rotates by an angle based on the token position only (and constant `theta`)/
+
+```python
+R[i] = 
+[
+  cos(i * theta)  -sin(i * theta)
+  sin(i * theta)   cos(i * theta)
+]
+```
+
+Let's say
+- `theta` = 5 degrees.
+
+And in sentence A: "I walk my dog every day"
+- `i` = 1 (I)
+- `j` = 4 (dog)
+
+So R rotates `q_i` by 1 * 5 = 5 degrees, and rotates `k_i` by 4 * 5 = 20 degrees.
+
+Now let's say the sentence is reordered to B: "every day I walk my dog".
+such that tokens at i and j are shifted 2 positions forward:
+
+- Now the token "I" is at position `n` = 2 + `i` = 2 + 1 = 3
+- "dog" is at position `m` = 4 + `j` = 2 + 4 = 6
+
+Now R rotates `q_n` by 3 * 5 = 15 degrees and `k_m` by 6 * 5 = 30.
+
+Notice that the relative differences in the angles is the same:
+30 - 15 = 20 - 5 = 15 degrees.
+
+Simple to see that if we shift i and j by s, the difference between the angles remains the same
+as before the shift.
+
+```
+(j + s ) * theta - ((i + s) * theta)
+= (j * theta + s * theta) - (i * theta + s * theta)
+= j * theta + s * theta - i * theta - s * theta
+= j * theta - i * theta + (s * theta - s * theta)
+= (j * theta) - (i * theta)
+```
+
+Now we just need to show that if apply R[i] to q_i, and R[j] to k_j, and do the dot product
+of the result, we also end up applying  R[j - i] (TODO: need to demonstrate this mathematically)
