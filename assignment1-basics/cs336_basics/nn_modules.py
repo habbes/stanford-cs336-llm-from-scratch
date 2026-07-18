@@ -397,3 +397,48 @@ class MultiHeadSelfAttention(nn.Module):
         y = self.Wo(o) # y -> (b, n, d_model)
         return y
         
+
+class TransformerBlock(nn.Module):
+    def __init__(
+            self,
+            d_model: int,
+            num_heads: int,
+            d_ff: int,
+            rope: RotaryPositionalEmbedding|None = None,
+            norm_eps: float= 1e-5,
+            device: torch.device|None = None,
+            dtype: torch.dtype|None = None):
+        """
+        Constructs a Transformer Block, the core repeating layer in the Transformer architecture.
+        It's composed of two sublayers: multi-head self attention and SwiGLU-based feed-forward network.
+
+        Args:
+            d_model (int): Dimentionality of the transformer block inputs (token embeddings).
+            num_heads (int): The number of attention heads in the multi-head self attention sub layer.
+            d_ff (int): The internal dimensionality of the feed-forward network. The embeddings will be
+                projected to this dimensionality before the activation function (GLU) is applied.
+            rope (RotaryPositionEmbedding|None): The RoPE module to apply to the attention layer
+                to inject relative position information to the attention mechanism.
+            norm_eps: Epsilon value used by RMSNorm for numeric stability
+            device (torch.device|None): The device that stores the tensors and performs operations.
+            dtype (torch.dtype|None): The datatype of the tensors
+        """
+        super().__init__()
+        self.use_rope = True if rope else False
+        self.norm1 = RMSNorm(d_model=d_model, eps=norm_eps, device=device, dtype=dtype)
+        self.mhsa = MultiHeadSelfAttention(d_model=d_model, num_heads= num_heads, rope=rope, device=device, dtype=dtype)
+        self.norm2 = RMSNorm(d_model=d_model, eps=norm_eps, device=device, dtype=dtype)
+        self.ffn = FFSwiGLU(d_model=d_model, d_ff=d_ff, device=device, dtype=dtype)
+    
+    def forward(self, x: torch.Tensor):
+        """
+        Applies the transformer block to the batch input x.
+
+        Args:
+            x (torch.Tensor): Batch where each item is a sequence of embeddings. Shape = (b, n, d_model)
+        """
+        seq_len = x.shape[-2]
+        token_positions = torch.arange(seq_len).reshape((1, seq_len)) if self.use_rope else None
+        y = x + self.mhsa(self.norm1(x), token_positions)
+        y = y + self.ffn(self.norm2(y))
+        return y

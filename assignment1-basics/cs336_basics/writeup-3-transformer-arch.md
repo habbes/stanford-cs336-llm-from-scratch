@@ -1516,3 +1516,77 @@ tests/test_model.py::test_multihead_self_attention_with_rope PASSED
 
 ================================================================= 2 passed, 46 deselected in 0.09s ==================================================================
 ```
+
+## 3.5 The full Transformer LM
+
+In this section we're going to assemble all the modules of the transformer architecture. As a reminder, here's
+the diagram of the architecture we're using in this course:
+
+![Transformer Architecture](./our-transformer-architecture.png)
+
+As you can see, the input embeddings are fed through layers of transformer blocks, then output
+embeddings are eventually fed through softmax to get probability distribution of the next token.
+
+First we'll build the core transformer block as a reusable module, then compose the full transformer model.
+
+### 3.5.1 Transformer Block
+
+As we see in the diagram above, the Transformer Block has 2 sublayers: multi-head self attention
+and SwiGLU feed forward network. In each sublayer, we first perform RMSNorm, then the main operation
+ (MHA or FF), finally adding the residual connection (element-wise addtion of the input embeddings to the output).
+
+The first sublayer (MHA) essentially computes:
+
+```python
+y = x + MultiHeadSelfAttention(RMSNorm(x))
+```
+
+Remember that `MultiHeadselfAttention` takes a batch of x input sequences of n token embeddings of size `d_model`. Conceptually, we consider that each
+token embeddings features represent some information about the token, that may not be context aware. Then `MultiHeadSelfAttention`
+looks across the other tokens in the same sequence to detect inter-relationships and produces a new token representation that encodes
+the information about the token in the context of the other tokens in the sequence. Each token embedding in the output sequence
+is also `d_model` but now contains context-aware information. The residual connection (addition with input) is technique that helps very deep networks
+avoid vanishing gradients, it provides a more stable pathway for gradients to propagate through deep complex networks, also conceptually keeps the deep
+network from "forgetting" information it processed earlier in the network by providing an easy path for this info to flow across the layers.
+
+The second sublayer computes:
+
+```python
+y = x + FFSwiGLU(x)
+```
+
+The feed-forward network processes each token independently (it doesn't look across tokens). It transforms the tokens then applies the SwiGLU activation function on each token. Remember the feed-forward network we use here takes `d_model` input (for each token) and projects it to a higher dimension (4/3 * d_model), then back down to `d_model`. Projecting vectors to higher dimension space can make it easier to linearly separate data. For example
+you can imagine some data that on a 2D plane appear as two overlapping circles, making it harder for a classifier to draw a boundary between
+the two sets of data, but if you project them in 3D space it may turn out that two circles actually live on two parallel planes with space inbetween,
+such that you could place a plane the cleanly separates the two sets of data.
+
+As part of the GLU operation, we apply sigmoid to the higher-dimension representation. Remember the activation function is applied elementwise, i.e.
+applied to each feature independently. Conceptually, assume that in this higher-dimension representation, the data is layed out such that it's
+clear to see where the boundary sits. The activation function is like a discriminator that looks at each feature and decides which features
+to keep and which features to suppress. So features that drag that data to the "wrong side" of the boundary are suppressed and features that
+are useful are retained. After we have filtered the "important" features via the activation function, we project the data back to `d_model` space
+using another matrix multiplication.
+
+**Implementation**
+
+I've implemented the `TransformerBlock` module class in [`nn_modules.py`](./nn_modules.py) and test adapter `run_transformer_block`.
+
+Run the tests with:
+
+```sh
+uv run pytest -k run_transformer_block
+```
+
+```
+uv run pytest -k test_transformer_block
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 47 deselected / 1 selected                                                                                                                     
+
+tests/test_model.py::test_transformer_block PASSED
+
+================================================================= 1 passed, 47 deselected in 0.08s ==================================================================
+```
