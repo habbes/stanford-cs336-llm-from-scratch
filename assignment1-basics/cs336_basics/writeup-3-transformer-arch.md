@@ -1590,3 +1590,45 @@ tests/test_model.py::test_transformer_block PASSED
 
 ================================================================= 1 passed, 47 deselected in 0.08s ==================================================================
 ```
+
+### 3.5.2 Transformer LM
+
+Now to put everything together. We'll take the input tokens, feed them into the `Embedding` module we implemented
+early to turn the sequence of token ids to a sequence of token embeddings, then feed that into `num_layers` transformer
+blocks, normalize the output then pass them through a final feed-forward network (LM head) to obtain an unnormalized
+distribution over the vocabulary (logits). The LM head takes as input an embedding vector (`d_model`) and returns
+a distribution over the vocab size, i.e. vector of size `vocab_size`. Softmax is used to normalize the logits
+into a probability distribution. However, we won't apply the output `softmax` in the module at this point. We'll
+leave the output unnormalized because we'll treat the distribution different depending on whether we're training
+or doing inference.
+
+The transformer will accept a `context_length` input which determines the maximum sequence length, and is also
+used to initialize the `RoPE` module.
+
+**Implementation**
+
+I've implemented the `TransformerLM` module class in [`nn_modules.py`](./nn_modules.py) and the test adapter `run_transformer_lm`
+in the [`../tests/adapters.py`](../tests/adapters.py).
+
+To run the tests:
+
+```sh
+uv run pytest -k test_transformer_lm
+```
+
+Results:
+
+```sh
+uv run pytest -k test_transformer_lm
+======================================================================== test session starts ========================================================================
+platform darwin -- Python 3.13.9, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/habbes/code/learn/stanford-cs336-llm-from-scratch/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 48 items / 46 deselected / 2 selected                                                                                                                     
+
+tests/test_model.py::test_transformer_lm PASSED
+tests/test_model.py::test_transformer_lm_truncated_input PASSED
+
+================================================================= 2 passed, 46 deselected in 0.14s ==================================================================
+```

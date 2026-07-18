@@ -442,3 +442,62 @@ class TransformerBlock(nn.Module):
         y = x + self.mhsa(self.norm1(x), token_positions)
         y = y + self.ffn(self.norm2(y))
         return y
+
+class TransformerLM(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        context_length: int,
+        num_layers: int,
+        d_model: int,
+        num_heads: int,
+        d_ff: int,
+        rope_theta: float,
+        norm_eps: float= 1e-5,
+        device: torch.device|None = None,
+        dtype: torch.dtype|None = None
+    ):
+        """
+        Constructs the Transformer Language model.
+
+        Args:
+            vocab_size (int): Vocabulary size, i.e. the total number of unique tokens in the language model.
+            context_length (int): The maximum context or input sequence length.
+            num_layers (int): The number of transformer blocks to use.
+            d_model (int): Dimentionality of the transformer block inputs (token embeddings).
+            num_heads (int): The number of attention heads in the multi-head self attention sub layer.
+            d_ff (int): The internal dimensionality of the feed-forward network. The embeddings will be
+                projected to this dimensionality before the activation function (GLU) is applied.
+            rope_theta (float): The constant used in the denominator of the RoPE equation.
+            norm_eps: Epsilon value used by RMSNorm for numeric stability
+            device (torch.device|None): The device that stores the tensors and performs operations.
+            dtype (torch.dtype|None): The datatype of the tensors
+        """
+        super().__init__()
+        assert d_model % num_heads == 0, f"d_model ({d_model}) must be evenly divisble by num_heads ({num_heads}) "
+        d_k = d_model // num_heads
+        self.rope = RotaryPositionalEmbedding(theta=rope_theta, d_k=d_k, max_seq_len=context_length, device=device)
+        self.embed = Embedding(num_embeddings=vocab_size, embedding_dim=d_model, device=device, dtype=dtype)
+        self.blocks = nn.ModuleList([
+            TransformerBlock(d_model, num_heads, d_ff, self.rope, norm_eps, device=device, dtype=dtype) for _ in range(num_layers)])
+        self.out_norm = RMSNorm(d_model, eps=norm_eps, device=device, dtype=dtype)
+        self.lm_head = Linear(d_model, vocab_size, device=device, dtype=dtype)
+    
+    def forward(self, x: torch.Tensor):
+        """
+        Applies the transformer to the batched input sequences. It produces
+        an unnormalized distribution (logits) over the vocabulary size for each item in the sequence
+
+        Args:
+            x (torch.Tensor): Batch input sequences of shape (b, n, d_model)
+        
+        Output:
+            y (torch.Tensor): Unnormalized distribution over the vocabulary size representing the weight of the next possible token (b, n, vocab_size)
+        """
+        y = self.embed(x)
+        for transformer in self.blocks:
+            y = transformer(y)
+        
+        y = self.out_norm(y)
+        y = self.lm_head(y)
+        return y

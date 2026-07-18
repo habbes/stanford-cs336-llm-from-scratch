@@ -11,7 +11,7 @@ from torch import Tensor
 
 from cs336_basics.train_bpe import train_bpe
 from cs336_basics.tokenizer import Tokenizer
-from cs336_basics.nn_modules import Linear, Embedding, RMSNorm, FFSwiGLU, RotaryPositionalEmbedding, softmax, scaled_dot_product_attention, MultiHeadSelfAttention, TransformerBlock
+from cs336_basics.nn_modules import Linear, Embedding, RMSNorm, FFSwiGLU, RotaryPositionalEmbedding, softmax, scaled_dot_product_attention, MultiHeadSelfAttention, TransformerBlock, TransformerLM
 
 def run_linear(
     d_in: int,
@@ -403,8 +403,36 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    model = TransformerLM(
+        vocab_size=vocab_size,
+        context_length=context_length,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        d_model=d_model,
+        d_ff=d_ff,
+        rope_theta=rope_theta
+    )
 
+    state = {
+        "embed.weights": weights["token_embeddings.weight"],
+        "out_norm.g": weights["ln_final.weight"],
+        "lm_head.weights": weights["lm_head.weight"]
+    }
+
+    for i in range(num_layers):
+        state[f"blocks.{i}.mhsa.Wq.weights"] = weights[f"layers.{i}.attn.q_proj.weight"]
+        state[f"blocks.{i}.mhsa.Wk.weights"] = weights[f"layers.{i}.attn.k_proj.weight"]
+        state[f"blocks.{i}.mhsa.Wv.weights"] = weights[f"layers.{i}.attn.v_proj.weight"]
+        state[f"blocks.{i}.mhsa.Wo.weights"] = weights[f"layers.{i}.attn.output_proj.weight"]
+        state[f"blocks.{i}.norm1.g"] = weights[f"layers.{i}.ln1.weight"]
+        state[f"blocks.{i}.ffn.W1.weights"] = weights[f"layers.{i}.ffn.w1.weight"]
+        state[f"blocks.{i}.ffn.W2.weights"] = weights[f"layers.{i}.ffn.w2.weight"]
+        state[f"blocks.{i}.ffn.W3.weights"] = weights[f"layers.{i}.ffn.w3.weight"]
+        state[f"blocks.{i}.norm2.g"] = weights[f"layers.{i}.ln2.weight"]
+
+    model.load_state_dict(state)
+    out = model(in_indices)
+    return out
 
 def run_rmsnorm(
     d_model: int,
