@@ -1632,3 +1632,25 @@ tests/test_model.py::test_transformer_lm_truncated_input PASSED
 
 ================================================================= 2 passed, 46 deselected in 0.14s ==================================================================
 ```
+
+### 3.5.3 Resource accounting
+
+In this section we want to understand how the various parts of the transformer consume
+compute and memory by doing basic "FLOPs" accounting.
+
+**Note** FLOPs = Floating Point Operations. Not to be confused with FLOP/s = Floating Point Operations per second.
+
+We consider a scalar addition or multiplication as a single FLOP.
+
+[CS336 Lecture 2 video video on FLOPs accounting](https://www.youtube.com/watch?v=kuYAsz7zspQ&t=2269s).
+
+The vast majority of FLOPs in a Transformer are matrix multiplies, so we will simply our approach as follows:
+
+1. Write down all the matrix multiplies in a Transformer forward pass
+2. Convert each matrix multiply into the flops required.
+
+**Rule**: Given matrix A (m, n) and matrix B (n, p), the matrix-matrix product AB requires `2 * m * n * p` FLOPs.
+For each row in A of size n and column in B of size n, the dot product `A[i:] @ B[:j]` requires n multiplications
+and n-1 additions, so roughly 2n FLOPs. And we have `m*p` such dot products, hence `2 * m * n * p`.
+
+So first let's go through all the components of the Transformer and list out their associated matrix-multiplies and FLOPs cost.

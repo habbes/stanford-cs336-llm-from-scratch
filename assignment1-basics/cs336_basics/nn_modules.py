@@ -474,7 +474,7 @@ class TransformerLM(nn.Module):
             dtype (torch.dtype|None): The datatype of the tensors
         """
         super().__init__()
-        assert d_model % num_heads == 0, f"d_model ({d_model}) must be evenly divisble by num_heads ({num_heads}) "
+        assert d_model % num_heads == 0, f"d_model ({d_model}) must be evenly divisible by num_heads ({num_heads})"
         d_k = d_model // num_heads
         self.rope = RotaryPositionalEmbedding(theta=rope_theta, d_k=d_k, max_seq_len=context_length, device=device)
         self.embed = Embedding(num_embeddings=vocab_size, embedding_dim=d_model, device=device, dtype=dtype)
