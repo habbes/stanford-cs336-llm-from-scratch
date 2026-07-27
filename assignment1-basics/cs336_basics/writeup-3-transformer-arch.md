@@ -1654,3 +1654,30 @@ For each row in A of size n and column in B of size n, the dot product `A[i:] @ 
 and n-1 additions, so roughly 2n FLOPs. And we have `m*p` such dot products, hence `2 * m * n * p`.
 
 So first let's go through all the components of the Transformer and list out their associated matrix-multiplies and FLOPs cost.
+
+- `Embedding` module: no matrix multiplies, just indexing into embedding matrix
+- `TransformerBlock` module:
+  - `RMSNorm`: no matrix multiplies, rms uses row-wise sums and elementwise operations
+  - `MultiHeadSelfAttention` (matrix multiplies plus a bunch of other elementwise or row-wise operations)
+    - `Wq(x)`: `2 * n * d_model * num_heads * d_k`
+    - `Wk(x)`: `2 * n * d_model * num_heads * d_k`
+    - `Wv(x)`: `2 * n * d_model * num_heads * d_v`
+    - `RoPE(Q)`: `2 * num_heads * n * d_k`
+    - `RoPE(K)`: `2 * num_heads * n * d_k`
+    - `ScaledDotProductAttention`:
+        - `Q @ K.T`: `2 * num_heads * n * d_k * n`
+        - `weights @ V`: `2 * num_heads * n * n * d_v`
+    - `Wo(y)`: `2 * n * num_heads * d_v * d_model
+    - Total cost per batch of input sequences: Add everything up and multiply by batch size.
+  - `RMSNorm`: no matrix multiplies
+  - `FFSwiGLU` (3 main Linear/matrix multiples and some elementwise products.)
+    - `W1(x)`: `2 * n * d_model * d_ff`
+    - `W3(x)`: `2 * n * d_model * d_ff`
+    - `W2(x)`: `2 * n * d_ff * d_model`
+    - Total cost per n tokens: `3 * (2 * n * d_model * d_ff)`
+    - Cost per batch of `b` input sequences: `6 * b * n * d_model * d_ff)
+- `RMSNorm`: no matrix multiplies
+- `Linear (d_model, vocab_size)` LM Head:
+  - Cost per input token: `2 * d_model * vocab_size`
+  - Cost per n input tokens: `2 * n * d_model * vocab_size`
+  - Cost per batch of b input sequences: `2 * b * n * d_model * vocab_size`
