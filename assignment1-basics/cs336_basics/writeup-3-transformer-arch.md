@@ -1681,3 +1681,45 @@ So first let's go through all the components of the Transformer and list out the
   - Cost per input token: `2 * d_model * vocab_size`
   - Cost per n input tokens: `2 * n * d_model * vocab_size`
   - Cost per batch of b input sequences: `2 * b * n * d_model * vocab_size`
+
+
+Next I'll complete the exercises under **Transformer LM resource accounting**
+
+#### 3.5.3.a GPT-2 XL memory requirements
+
+> Consider a GPT-2 XL-sized model using our assignment architecture, which has the following 
+configuration:
+>
+> - **vocab_size**:  50,257
+> - **context_length**:  1,024
+> - **num_layers**:  48
+> - **d_model**:  1,600
+> - **num_heads**:  25
+> - **d_ff**:  4,288 (the nearest multiple of 64 to 8
+3 × 1, 600)
+>
+> Suppose we constructed our model using this configuration. How many trainable parameters 
+would our model have? Assuming each parameter is represented using single-precision floating 
+point, how much memory is required to just load this model?
+
+Before answering, let me breakdown the number of trainable parameters in each module of the architecture:
+
+- `Embedding`: `vocab_size * d_model`
+- `RoPE`: no trainable params, but holds buffer of `max_seq_len * d_k * d_k` elements for rotation matrix
+- `TransformerBlock`:
+  - `RMSNorm` (attention norm):
+    - `g`: `d_model`
+  - `MultiHeadSelfAttention`
+    - `Wq`: `d_model * num_heads * d_k`
+    - `Wk`: `d_model * num_heads * d_k`
+    - `Wv`: `d_model * num_heads * d_v`
+    - `Wo`: `num_heads * d_v * d_model`
+  - `RMSNorm` (linear layer norm):
+    - `g`: `d_model`
+  - `FFSwiGLU`:
+    - `W1`: `d_model * d_ff`
+    - `W2`: `d_ff * d_model`
+    - `W3`: `d_model * d_ff`
+- `RMSNorm` (output norm): 
+  - `g`: `d_model`
+- `Linear` (LM Head): `d_model * vocab_size`
