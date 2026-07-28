@@ -34,7 +34,7 @@ class LeafContainer(ParamContainer):
     def get_num_params(self, hyper_params: HyperParams):
         return self.params_fn(hyper_params)
 
-class ParentContainer(ParamContainer):
+class CompositeContainer(ParamContainer):
     def __init__(self, name: str, *children: ParamContainer):
         super().__init__(name)
         self.children = children
@@ -45,20 +45,20 @@ class ParentContainer(ParamContainer):
 
 
 def create_params_counter(num_layers: int):
-    params_counter = ParentContainer("TransformerLM",
+    params_counter = CompositeContainer("TransformerLM",
         LeafContainer("Embedding", lambda h: h.vocab_size * h.d_model),
         # TODO: is RoPE worth mentioning, it has no trainable params but holds some buffer
         # LeafContainer("RoPE", lambda h: h.context_length * h.d_k * h.d_k),
-        ParentContainer("RMSNorm",
+        CompositeContainer("RMSNorm",
             LeafContainer("g", lambda h: h.d_model),
-        ParentContainer("TransformerLayers",
-            (ParentContainer("TransformerBlock",
-                ParentContainer("RMSNorm",
+        CompositeContainer("TransformerLayers",
+            (CompositeContainer("TransformerBlock",
+                CompositeContainer("RMSNorm",
                     LeafContainer("g", lambda h: h.d_model),
-                ParentContainer("MultiHeadSelfAttention",
+                CompositeContainer("MultiHeadSelfAttention",
                     LeafContainer("Wq", lambda h: h.d_model * h.num_heads * h.d_model)))) for _ in range(num_layers)))),
                     # TODO complete MHSA and TransformerBlock
-        ParentContainer("RMSNorm (output)",
+        CompositeContainer("RMSNorm (output)",
             LeafContainer("g", lambda h: h.d_model)),
         LeafContainer("Linear (LM Head)", lambda h: h.d_model * h.vocab_size))
     
