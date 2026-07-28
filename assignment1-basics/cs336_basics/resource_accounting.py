@@ -56,7 +56,7 @@ def create_params_counter(num_layers: int):
                 CompositeContainer("RMSNorm",
                     LeafContainer("g", lambda h: h.d_model),
                 CompositeContainer("MultiHeadSelfAttention",
-                    LeafContainer("Wq", lambda h: h.d_model * h.num_heads * h.d_model)))) for _ in range(num_layers)))),
+                    LeafContainer("Wq", lambda h: h.d_model * h.num_heads * h.d_k)))) for _ in range(num_layers)))),
                     # TODO complete MHSA and TransformerBlock
         CompositeContainer("RMSNorm (output)",
             LeafContainer("g", lambda h: h.d_model)),
