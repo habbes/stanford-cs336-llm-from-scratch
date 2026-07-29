@@ -1,8 +1,10 @@
 This folder contains my code implement problem solutions and projects for [homework 1](../cs336_spring2025_assignment1_basics.pdf).
 
-The detailed report for this section can be found in this [writeup.md](./writeup.md) file. That doc contains
+The detailed reports for this section can be found in `writeup-*` files in this folder, such as [writeup-2-bpe.md](./writeup-2-bpe.md) file.
+The docs contain
 answers to problems in the [assignment document](../cs336_spring2025_assignment1_basics.pdf), but it's
-more of a log that I update based on my thought process and experiments as I go.
+more of a log that I update based on my thought process, insights, experiments and learnigns as I go.
+Generally, there's a separate writeup doc for each chapter of the assignment.
 
 To run scripts and code in this folder, navigate to the [parent folder](../)
 and run the scripts as python modules:
@@ -72,6 +74,14 @@ You can specify the output dir where the vocab and merges files will be saved.
 uv run python -m cs336_basics.run_train_bpe data/TinyStoriesV2-GPT4-valid.txt -o path/output/dir
 ```
 
+The [`resource_accounting.py`](./resource_accounting.py) module contains helpers for counting params, flops, etc. and other
+resources related to training and running the model. It also computes and prints answers related to resource
+accounting questions in the assignment:
+
+```bash
+uv run python -m cs336_basics.resource_accounting
+```
+
 ## Run official tests
 
 ### BPE training tests
@@ -138,4 +148,10 @@ uv run pytest -k test_softmax_matches_pytorch
 
 ```sh
 uv run pytest -k test_4d_scaled_dot_product_attention
+```
+
+### MultiHeadSelfAttention tests
+
+```sh
+uv run pytest -k test_multihead_self_attention
 ```

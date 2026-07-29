@@ -88,3 +88,28 @@ def create_transformer_params_counter(num_layers: int):
         LeafCounter("Linear (LM Head)", lambda h: h.d_model * h.vocab_size)))
     
     return params_counter
+
+
+def get_gpt2_xl_config():
+    return HyperParams(
+        vocab_size=50257,
+        context_length=1024,
+        num_layers=48,
+        d_model=1600,
+        num_heads=25,
+        d_ff=4288 # (the nearest multiple of 64 to (8/3) * 1600)
+    )
+
+def gpt2_xl_trainable_params():
+    gpt2_xl_config = get_gpt2_xl_config()
+    gpt2_xl_params_counter = create_transformer_params_counter(gpt2_xl_config.num_layers)
+    param_count = gpt2_xl_params_counter.get_num_params(gpt2_xl_config)
+
+    memory_required = param_count * 4 # Assumes each param is float32
+    memory_in_gigs = memory_required / 2**30
+
+    print(f"GPT2 XL architecture has trainable {param_count} params and requires {memory_required} bytes, {memory_in_gigs} GiB")
+
+if __name__ == '__main__':
+    gpt2_xl_trainable_params()
+
