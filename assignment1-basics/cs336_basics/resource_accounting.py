@@ -108,7 +108,7 @@ def gpt2_xl_trainable_params():
     memory_required = param_count * 4 # Assumes each param is float32
     memory_in_gigs = memory_required / 2**30
 
-    print(f"GPT2 XL architecture has trainable {param_count} params and requires {memory_required} bytes, {memory_in_gigs} GiB")
+    print(f"GPT2 XL architecture has {param_count} trainable params and requires {memory_required} bytes, {memory_in_gigs} GiB")
 
 if __name__ == '__main__':
     gpt2_xl_trainable_params()

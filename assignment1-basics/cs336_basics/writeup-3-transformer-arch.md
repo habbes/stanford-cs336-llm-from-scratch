@@ -1723,3 +1723,70 @@ Before answering, let me breakdown the number of trainable parameters in each mo
 - `RMSNorm` (output norm): 
   - `g`: `d_model`
 - `Linear` (LM Head): `d_model * vocab_size`
+
+
+I've created a helper module for resource accounting in the [`resource_accounting.py`](./resource_accounting.py)
+file to make it easier to count params and FLOPs based on hyper parameter configuration.
+
+Using the helper module, here's how I'd define a counter for trainable params based on the breakdown above:
+
+```python
+def create_transformer_params_counter(num_layers: int):
+    params_counter = CompositeCounter("TransformerLM",
+        LeafCounter("Embedding", lambda h: h.vocab_size * h.d_model),
+        # TODO: is RoPE worth mentioning, it has no trainable params but holds some buffer
+        # LeafContainer("RoPE", lambda h: h.context_length * h.d_k * h.d_k),
+        CompositeCounter("RMSNorm",
+            LeafCounter("g", lambda h: h.d_model),
+        RepeatCounter("TransformerLayers", num_layers,
+            CompositeCounter("TransformerBlock",
+                CompositeCounter("RMSNorm",
+                    LeafCounter("g", lambda h: h.d_model),
+                CompositeCounter("MultiHeadSelfAttention",
+                    LeafCounter("Wq", lambda h: h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wk", lambda h: h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wv", lambda h: h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wo", lambda h: h.num_heads * h.d_k * h.d_model)),
+                CompositeCounter("RMSNorm",
+                    LeafCounter("g", lambda h: h.d_model)),
+                CompositeCounter("FFSwiGLU",
+                    LeafCounter("W1", lambda h: h.d_model * h.d_ff),
+                    LeafCounter("W3", lambda h: h.d_model * h.d_ff),
+                    LeafCounter("W2", lambda h: h.d_ff * h.d_model)),
+                CompositeCounter("RMSNorm",
+                    LeafCounter("g", lambda h: h.d_model))))),
+        CompositeCounter("RMSNorm (output)",
+            LeafCounter("g", lambda h: h.d_model)),
+        LeafCounter("Linear (LM Head)", lambda h: h.d_model * h.vocab_size)))
+    
+    return params_counter
+```
+
+And here's how I'd use it with the GPT2-XL config:
+
+```python
+config = HyperParams(
+    vocab_size=50257,
+    context_length=1024,
+    num_layers=48,
+    d_model=1600,
+    num_heads=25,
+    d_ff=4288 # (the nearest multiple of 64 to (8/3) * 1600)
+)
+
+counter = create_transformer_params_counter(config.num_layers)
+param_count = counter.get_num_params(config)
+```
+
+I've updated the `resource_accounting` module to answer the question in this section:
+
+```sh
+uv run python -m cs336_basics.resource_accounting  
+```
+
+```sh
+GPT2 XL architecture has 1640531200 trainable params and requires 6562124800 bytes, 6.111454963684082 GiB
+```
+
+Our model would have **1,640,531,200** trainable params (1.6B) and require about **6.1GiB** of memory
+assuming each parameter is stored using `float32`.
