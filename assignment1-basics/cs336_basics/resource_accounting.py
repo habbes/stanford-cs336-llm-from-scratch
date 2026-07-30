@@ -44,16 +44,16 @@ class CompositeCounter(ParamCounter):
             map(lambda child: child.get_num_params(hyper_params), self.children))
 
 class RepeatCounter(ParamCounter):
-    def __init__(self, name: str, element_count: int, element: ParamCounter):
+    def __init__(self, name: str, get_num_elements: Callable[[HyperParams], int], element: ParamCounter):
         super().__init__(name)
-        self.element_count = element_count
+        self.get_num_elements = get_num_elements
         self.element = element
     
     def get_num_params(self, hyper_params: HyperParams):
-        return self.element_count * self.element.get_num_params(hyper_params)
+        return self.get_num_elements(hyper_params) * self.element.get_num_params(hyper_params)
 
 
-def create_transformer_params_counter(num_layers: int):
+def create_transformer_params_counter():
     """
     Creates a resource counter that returns the total
     number of trainable params in a transformer architecture
@@ -66,7 +66,7 @@ def create_transformer_params_counter(num_layers: int):
         # LeafContainer("RoPE", lambda h: h.context_length * h.d_k * h.d_k),
         CompositeCounter("RMSNorm",
             LeafCounter("g", lambda h: h.d_model),
-        RepeatCounter("TransformerLayers", num_layers,
+        RepeatCounter("TransformerLayers", lambda h: h.num_layers,
             CompositeCounter("TransformerBlock",
                 CompositeCounter("RMSNorm",
                     LeafCounter("g", lambda h: h.d_model),
@@ -102,7 +102,7 @@ def get_gpt2_xl_config():
 
 def gpt2_xl_trainable_params():
     gpt2_xl_config = get_gpt2_xl_config()
-    gpt2_xl_params_counter = create_transformer_params_counter(gpt2_xl_config.num_layers)
+    gpt2_xl_params_counter = create_transformer_params_counter()
     param_count = gpt2_xl_params_counter.get_num_params(gpt2_xl_config)
 
     memory_required = param_count * 4 # Assumes each param is float32

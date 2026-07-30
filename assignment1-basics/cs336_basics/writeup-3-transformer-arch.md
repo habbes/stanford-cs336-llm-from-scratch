@@ -1731,14 +1731,14 @@ file to make it easier to count params and FLOPs based on hyper parameter config
 Using the helper module, here's how I'd define a counter for trainable params based on the breakdown above:
 
 ```python
-def create_transformer_params_counter(num_layers: int):
+def create_transformer_params_counter():
     params_counter = CompositeCounter("TransformerLM",
         LeafCounter("Embedding", lambda h: h.vocab_size * h.d_model),
         # TODO: is RoPE worth mentioning, it has no trainable params but holds some buffer
         # LeafContainer("RoPE", lambda h: h.context_length * h.d_k * h.d_k),
         CompositeCounter("RMSNorm",
             LeafCounter("g", lambda h: h.d_model),
-        RepeatCounter("TransformerLayers", num_layers,
+        RepeatCounter("TransformerLayers", h: h.num_layers,
             CompositeCounter("TransformerBlock",
                 CompositeCounter("RMSNorm",
                     LeafCounter("g", lambda h: h.d_model),
@@ -1774,7 +1774,7 @@ config = HyperParams(
     d_ff=4288 # (the nearest multiple of 64 to (8/3) * 1600)
 )
 
-counter = create_transformer_params_counter(config.num_layers)
+counter = create_transformer_params_counter()
 param_count = counter.get_num_params(config)
 ```
 
