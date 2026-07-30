@@ -10,6 +10,7 @@ class HyperParams:
     d_model: int
     num_heads: int
     d_ff: int
+    batch_size: int
 
     @property
     def d_k(self):
@@ -89,6 +90,34 @@ def create_transformer_params_counter():
     
     return params_counter
 
+def create_transformer_flops_counter():
+    """
+    Creates a resource counter that estimates the number
+    of FLOPs in a transformer architecture forward training pass
+    based on the matrix multiply operations in the architecture's
+    components.
+    """
+    flops_counter = CompositeCounter("TransformerLM",
+        RepeatCounter("TransformerLayers", lambda h: h.num_layers,
+            CompositeCounter("TransformerBlock",
+                CompositeCounter("MultiHeadSelfAttention",
+                    LeafCounter("Wq(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wk(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wv(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("RoPE(Q)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k),
+                    LeafCounter("RoPE(K)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k),
+                    CompositeCounter("ScaledDotProductAttention",
+                        LeafCounter("Q @ K.T", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k * h.context_length),
+                        LeafCounter("weights @ V", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_v)),
+                    LeafCounter("Wo(y)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_k)),
+                CompositeCounter("FFSwiGLU",
+                    LeafCounter("W1(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.d_ff),
+                    LeafCounter("W3(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.d_ff),
+                    LeafCounter("W2(x)", lambda h: 2 * h.context_length * h.d_ff * h.d_model)))),
+        LeafCounter("Linear (LM Head)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.vocab_size))
+    
+    return flops_counter
+
 
 def get_gpt2_xl_config():
     return HyperParams(
@@ -109,6 +138,7 @@ def gpt2_xl_trainable_params():
     memory_in_gigs = memory_required / 2**30
 
     print(f"GPT2 XL architecture has {param_count} trainable params and requires {memory_required} bytes, {memory_in_gigs} GiB")
+
 
 if __name__ == '__main__':
     gpt2_xl_trainable_params()
