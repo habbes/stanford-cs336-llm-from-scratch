@@ -108,7 +108,7 @@ def create_transformer_flops_counter():
                     LeafCounter("RoPE(K)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k),
                     CompositeCounter("ScaledDotProductAttention",
                         LeafCounter("Q @ K.T", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k * h.context_length),
-                        LeafCounter("weights @ V", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_v)),
+                        LeafCounter("weights @ V", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_k)),
                     LeafCounter("Wo(y)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_k)),
                 CompositeCounter("FFSwiGLU",
                     LeafCounter("W1(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.d_ff),
