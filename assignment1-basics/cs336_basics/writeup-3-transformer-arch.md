@@ -1775,7 +1775,7 @@ config = HyperParams(
 )
 
 counter = create_transformer_params_counter()
-param_count = counter.get_num_params(config)
+param_count = counter.get_resource_count(config)
 ```
 
 I've updated the `resource_accounting` module to answer the question in this section:

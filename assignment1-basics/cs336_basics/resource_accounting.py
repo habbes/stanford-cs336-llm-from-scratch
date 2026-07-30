@@ -15,7 +15,7 @@ class HyperParams:
     def d_k(self):
         return self.d_model // self.num_heads
 
-class ParamCounter(ABC):
+class ResourceCounter(ABC):
     def __init__(self, name: str):
         self.name = name
 
@@ -23,34 +23,34 @@ class ParamCounter(ABC):
         return self.name
 
     @abstractmethod
-    def get_num_params(self, hyper_params: HyperParams):
+    def get_resource_count(self, hyper_params: HyperParams):
         pass
 
-class LeafCounter(ParamCounter):
+class LeafCounter(ResourceCounter):
     def __init__(self, name: str, params_fn: Callable[[HyperParams], int]):
         super().__init__(name)
         self.params_fn = params_fn
     
-    def get_num_params(self, hyper_params: HyperParams):
+    def get_resource_count(self, hyper_params: HyperParams):
         return self.params_fn(hyper_params)
 
-class CompositeCounter(ParamCounter):
-    def __init__(self, name: str, *children: ParamCounter):
+class CompositeCounter(ResourceCounter):
+    def __init__(self, name: str, *children: ResourceCounter):
         super().__init__(name)
         self.children = children
     
-    def get_num_params(self, hyper_params: HyperParams):
+    def get_resource_count(self, hyper_params: HyperParams):
         return sum(
-            map(lambda child: child.get_num_params(hyper_params), self.children))
+            map(lambda child: child.get_resource_count(hyper_params), self.children))
 
-class RepeatCounter(ParamCounter):
-    def __init__(self, name: str, get_num_elements: Callable[[HyperParams], int], element: ParamCounter):
+class RepeatCounter(ResourceCounter):
+    def __init__(self, name: str, get_num_elements: Callable[[HyperParams], int], element: ResourceCounter):
         super().__init__(name)
         self.get_num_elements = get_num_elements
         self.element = element
     
-    def get_num_params(self, hyper_params: HyperParams):
-        return self.get_num_elements(hyper_params) * self.element.get_num_params(hyper_params)
+    def get_resource_count(self, hyper_params: HyperParams):
+        return self.get_num_elements(hyper_params) * self.element.get_resource_count(hyper_params)
 
 
 def create_transformer_params_counter():
@@ -103,7 +103,7 @@ def get_gpt2_xl_config():
 def gpt2_xl_trainable_params():
     gpt2_xl_config = get_gpt2_xl_config()
     gpt2_xl_params_counter = create_transformer_params_counter()
-    param_count = gpt2_xl_params_counter.get_num_params(gpt2_xl_config)
+    param_count = gpt2_xl_params_counter.get_resource_count(gpt2_xl_config)
 
     memory_required = param_count * 4 # Assumes each param is float32
     memory_in_gigs = memory_required / 2**30

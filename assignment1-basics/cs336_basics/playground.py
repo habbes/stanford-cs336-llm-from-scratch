@@ -776,7 +776,7 @@ def test_resource_counter():
     config = get_gpt2_xl_config()
     counter = create_transformer_params_counter()
     
-    count = counter.get_num_params(config)
+    count = counter.get_resource_count(config)
 
     expected = 1640531200
     assert count == expected, f"Got {count}, but expected {expected} trainable params"
