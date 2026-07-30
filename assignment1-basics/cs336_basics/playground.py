@@ -9,6 +9,7 @@ from .train_bpe_core import train_bpe_core_str
 from .tokenizer import Tokenizer
 from .bpe_common import dump_bpe_merges, load_bpe_merges, dump_bpe_vocab, load_bpe_vocab
 from .nn_modules import Linear, Embedding
+from .resource_accounting import get_gpt2_xl_config, create_transformer_params_counter
 import multiprocessing as mp
 import random
 
@@ -769,6 +770,18 @@ def test_embedding_module_initialization():
         assert std_diff < 0.1, f"Got std {std}, but expected {target_std} (diff = {std_diff}) for Linear module with d_vocab={d_vocab}, d_model={d_model}"
     
     print("Test passed!")
+
+def test_resource_counter():
+    print("SCENARIO: Verify resource counter for GPT2-XL trainable params")
+    config = get_gpt2_xl_config()
+    counter = create_transformer_params_counter()
+    
+    count = counter.get_num_params(config)
+
+    expected = 1640531200
+    assert count == expected, f"Got {count}, but expected {expected} trainable params"
+
+    print("Test passed!")
     
 
 if __name__ == "__main__": 
@@ -790,4 +803,5 @@ if __name__ == "__main__":
     test_bpe_merges_serializer_roundtrip()
     test_linear_module_initialization()
     test_embedding_module_initialization()
+    test_resource_counter()
 
