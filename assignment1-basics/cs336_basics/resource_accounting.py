@@ -126,7 +126,8 @@ def get_gpt2_xl_config():
         num_layers=48,
         d_model=1600,
         num_heads=25,
-        d_ff=4288 # (the nearest multiple of 64 to (8/3) * 1600)
+        d_ff=4288, # (the nearest multiple of 64 to (8/3) * 1600)
+        batch_size=1
     )
 
 def gpt2_xl_trainable_params():
@@ -139,7 +140,15 @@ def gpt2_xl_trainable_params():
 
     print(f"GPT2 XL architecture has {param_count} trainable params and requires {memory_required} bytes, {memory_in_gigs} GiB")
 
+def gpt2_xl_forward_pass_flops():
+    config = get_gpt2_xl_config()
+    counter = create_transformer_flops_counter()
+    flops = counter.get_resource_count(config)
+
+    print(f"GPT2 XL architecture requires {flops} FLOPs for matrix multiplies in the forward pass.")
 
 if __name__ == '__main__':
     gpt2_xl_trainable_params()
+    print()
+    gpt2_xl_forward_pass_flops()
 

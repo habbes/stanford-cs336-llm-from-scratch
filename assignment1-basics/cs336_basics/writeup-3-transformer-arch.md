@@ -1790,3 +1790,51 @@ GPT2 XL architecture has 1640531200 trainable params and requires 6562124800 byt
 
 Our model would have **1,640,531,200** trainable params (1.6B) and require about **6.1GiB** of memory
 assuming each parameter is stored using `float32`.
+
+#### 3.5.3.b GPT-2 XL matrix multiplies FLOPs in the forward pass
+
+> Identify the matrix multiplies required to complete a forward pass of our GPT-2 XL-shaped 
+model. How many FLOPs do these matrix multiplies require in total? Assume that our input 
+sequence has `context_length` tokens.
+>
+> **Deliverable**: A list of matrix multiplies (with descriptions), and the total number of FLOPs 
+required.
+
+I've already listed the list of matrix multiplies in the different components of the forward pass
+above. To answer this question, I've also created a resource counter based on that breakdown:
+
+```python
+def create_transformer_flops_counter():
+    flops_counter = CompositeCounter("TransformerLM",
+        RepeatCounter("TransformerLayers", lambda h: h.num_layers,
+            CompositeCounter("TransformerBlock",
+                CompositeCounter("MultiHeadSelfAttention",
+                    LeafCounter("Wq(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wk(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("Wv(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.num_heads * h.d_k),
+                    LeafCounter("RoPE(Q)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k),
+                    LeafCounter("RoPE(K)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k),
+                    CompositeCounter("ScaledDotProductAttention",
+                        LeafCounter("Q @ K.T", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.d_k * h.context_length),
+                        LeafCounter("weights @ V", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_k)),
+                    LeafCounter("Wo(y)", lambda h: 2 * h.batch_size * h.num_heads * h.context_length * h.context_length * h.d_k)),
+                CompositeCounter("FFSwiGLU",
+                    LeafCounter("W1(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.d_ff),
+                    LeafCounter("W3(x)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.d_ff),
+                    LeafCounter("W2(x)", lambda h: 2 * h.context_length * h.d_ff * h.d_model)))),
+        LeafCounter("Linear (LM Head)", lambda h: 2 * h.batch_size * h.context_length * h.d_model * h.vocab_size))
+    
+    return flops_counter
+```
+
+And then run the resouce accounting script:
+
+```sh
+uv run python -m cs336_basics.resource_accounting
+```
+
+```sh
+GPT2 XL architecture requires 3426487500800 FLOPs for matrix multiplies in the forward pass.
+```
+
+There **3,426,487,500,800** FLOPs in the matrix multiplies in the forward pass assuming a batch size of 1.
