@@ -54,25 +54,36 @@ class RepeatCounter(ResourceCounter):
         return self.get_num_elements(hyper_params) * self.element.get_resource_count(hyper_params)
 
 
-def format_count(count: int, total: int):
-    pct = 100 * count / total
-    return f"{count} ({pct:.2f}%)"
+def format_count(count: int, parent_count: int, total_count: int):
+    pct_parent = 100 * count / parent_count
+    pct_total = 100 * count / total_count
+    return f"{count} ({pct_parent:.2f}% of parent) ({pct_total:.2f}% of total)"
 
-def print_component_resource_counts(counter: ResourceCounter, hyper_params: HyperParams, indent_level: int = 0, total_count: int = -1):
+def print_component_resource_counts(
+        counter: ResourceCounter,
+        hyper_params: HyperParams,
+        indent_level: int = 0,
+        parent_count: int = -1,
+        total_count: int = -1):
     INDENT_SIZE = 2
     indent = " " * (indent_level * INDENT_SIZE) if indent_level > 0 else ""
-    total = counter.get_resource_count(hyper_params) if total_count == -1 else total_count
+
+    total_count = counter.get_resource_count(hyper_params) if total_count == -1 else total_count
+    parent_count = total_count if parent_count == -1 else parent_count
+
     if isinstance(counter, RepeatCounter):
         count = counter.get_resource_count(hyper_params)
-        print(f"{indent}{counter.name} x{counter.get_num_elements(hyper_params)}: {format_count(count, total)}")
-        print_component_resource_counts(counter.element, hyper_params, indent_level + 1, count)
+        print(f"{indent}{counter.name} x{counter.get_num_elements(hyper_params)}: {format_count(count, parent_count, total_count)}")
+        print_component_resource_counts(counter.element, hyper_params, indent_level + 1, count, total_count)
+
     elif isinstance(counter, CompositeCounter):
-        composite_count = counter.get_resource_count(hyper_params)
-        print(f"{indent}{counter.name}: {format_count(composite_count, total)}")
+        count = counter.get_resource_count(hyper_params)
+        print(f"{indent}{counter.name}: {format_count(count, parent_count, total_count)}")
         for child in counter.children:
-            print_component_resource_counts(child, hyper_params, indent_level + 1, composite_count)
+            print_component_resource_counts(child, hyper_params, indent_level + 1, count, total_count)
+
     else:
-        print(f"{indent}{counter.name}: {format_count(counter.get_resource_count(hyper_params), total)}")
+        print(f"{indent}{counter.name}: {format_count(counter.get_resource_count(hyper_params), parent_count, total_count)}")
 
 
 def create_transformer_params_counter():

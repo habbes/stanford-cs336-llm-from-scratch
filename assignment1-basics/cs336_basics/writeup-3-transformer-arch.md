@@ -1854,27 +1854,27 @@ uv run python -m cs336_basics.resource_accounting
 
 ```sh
 GPT2 XL component FLOPs breakdown:
-TransformerLM: 3426487500800 (100.00%)
-  TransformerLayers x48: 3261805363200 (95.19%)
-    TransformerBlock: 67954278400 (2.08%)
-      MultiHeadSelfAttention: 25801523200 (37.97%)
-        Wq(x): 5242880000 (20.32%)
-        Wk(x): 5242880000 (20.32%)
-        Wv(x): 5242880000 (20.32%)
-        RoPE(Q): 3276800 (0.01%)
-        RoPE(K): 3276800 (0.01%)
-        ScaledDotProductAttention: 6710886400 (26.01%)
-          Q @ K.T: 3355443200 (50.00%)
-          weights @ V: 3355443200 (50.00%)
-        Wo(y): 3355443200 (13.00%)
-      FFSwiGLU: 42152755200 (62.03%)
-        W1(x): 14050918400 (33.33%)
-        W3(x): 14050918400 (33.33%)
-        W2(x): 14050918400 (33.33%)
-  Linear (LM Head): 164682137600 (4.81%)
+TransformerLM: 3426487500800 (100.00% of parent) (100.00% of total)
+  TransformerLayers x48: 3261805363200 (95.19% of parent) (95.19% of total)
+    TransformerBlock: 67954278400 (2.08% of parent) (1.98% of total)
+      MultiHeadSelfAttention: 25801523200 (37.97% of parent) (0.75% of total)
+        Wq(x): 5242880000 (20.32% of parent) (0.15% of total)
+        Wk(x): 5242880000 (20.32% of parent) (0.15% of total)
+        Wv(x): 5242880000 (20.32% of parent) (0.15% of total)
+        RoPE(Q): 3276800 (0.01% of parent) (0.00% of total)
+        RoPE(K): 3276800 (0.01% of parent) (0.00% of total)
+        ScaledDotProductAttention: 6710886400 (26.01% of parent) (0.20% of total)
+          Q @ K.T: 3355443200 (50.00% of parent) (0.10% of total)
+          weights @ V: 3355443200 (50.00% of parent) (0.10% of total)
+        Wo(y): 3355443200 (13.00% of parent) (0.10% of total)
+      FFSwiGLU: 42152755200 (62.03% of parent) (1.23% of total)
+        W1(x): 14050918400 (33.33% of parent) (0.41% of total)
+        W3(x): 14050918400 (33.33% of parent) (0.41% of total)
+        W2(x): 14050918400 (33.33% of parent) (0.41% of total)
+  Linear (LM Head): 164682137600 (4.81% of parent) (4.81% of total)
 ```
 
 As expected, the transformer layers cumulatively account for most of the FLOPs (over 95%). Within
 a transformer block, I'm surprised that the linear layers of the `FFSwiGLU` account for more FLOPs (62%)
-than the multi head attention block (37%). This is mainly due to project into and out of a higher
+than the multi head attention block (~36%). This is mainly due to project into and out of a higher
 dimenssion (`d_ff` = 2.68 * `d_model)`.
