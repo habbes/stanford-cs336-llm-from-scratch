@@ -221,6 +221,11 @@ def gpt2_large_forward_pass_flops():
     config = get_gpt2_large_config()
     print_forward_pass_flops_breakdown("GPT2 Large", config)
 
+def gpt2_xl_increased_context_length_forward_pass_flops():
+    config = get_gpt2_xl_config()
+    config.context_length = 16_384
+    print_forward_pass_flops_breakdown("GPT2 XL (context length = 16,384)", config)
+
 
 if __name__ == '__main__':
     gpt2_xl_trainable_params()
@@ -235,4 +240,7 @@ if __name__ == '__main__':
     print()
     print()
     gpt2_large_forward_pass_flops()
+    print()
+    print()
+    gpt2_xl_increased_context_length_forward_pass_flops()
 

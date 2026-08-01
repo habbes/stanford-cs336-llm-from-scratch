@@ -1977,3 +1977,45 @@ As the model size increases:
 - The relative FLOPs of the aggregate transformer layers increases
 - THe relative FLOPs of the multi head attention block within a transformer block decrease
 - The relative FLOPs of the FFSwiGLU linear layers within a transformer block increase
+
+#### 3.5.3.e GPT2-XL with 16x context length
+
+> Take GPT-2 XL and increase the context length to 16,384. How does the total FLOPs for one 
+forward pass change? How does the relative contribution of FLOPs of the model components 
+change?
+>
+> **Deliverable**: A one-to-two sentence response.
+
+Let's compute the breakdown:
+
+```sh
+uv run python -m cs336_basics.resource_accounting
+```
+
+```sh
+GPT2 XL (context length = 16,384) architecture requires 170787917004800 FLOPs for matrix multiplies in the forward pass.
+GPT2 XL (context length = 16,384) component FLOPs breakdown:
+TransformerLM: 170787917004800 (100.00% of parent) (100.00% of total)
+  TransformerLayers x48: 168153002803200 (98.46% of parent) (98.46% of total)
+    TransformerBlock: 3503187558400 (2.08% of parent) (2.05% of total)
+      MultiHeadSelfAttention: 2828743475200 (80.75% of parent) (1.66% of total)
+        Wq(x): 83886080000 (2.97% of parent) (0.05% of total)
+        Wk(x): 83886080000 (2.97% of parent) (0.05% of total)
+        Wv(x): 83886080000 (2.97% of parent) (0.05% of total)
+        RoPE(Q): 52428800 (0.00% of parent) (0.00% of total)
+        RoPE(K): 52428800 (0.00% of parent) (0.00% of total)
+        ScaledDotProductAttention: 1717986918400 (60.73% of parent) (1.01% of total)
+          Q @ K.T: 858993459200 (50.00% of parent) (0.50% of total)
+          weights @ V: 858993459200 (50.00% of parent) (0.50% of total)
+        Wo(y): 858993459200 (30.37% of parent) (0.50% of total)
+      FFSwiGLU: 674444083200 (19.25% of parent) (0.39% of total)
+        W1(x): 224814694400 (33.33% of parent) (0.13% of total)
+        W3(x): 224814694400 (33.33% of parent) (0.13% of total)
+        W2(x): 224814694400 (33.33% of parent) (0.13% of total)
+  Linear (LM Head): 2634914201600 (1.54% of parent) (1.54% of total)
+```
+
+Total flops increase by a factor of `170787917004800 / 3426487500800` = 49.8x. The scaled
+dot product attention component dominates the transformer block, its relative FLOPs
+increase significantly (60.73% of MHSA, and therefore ~48% of transformer block). This makes
+sense since the attention computations are quadratic with respect to context length.
