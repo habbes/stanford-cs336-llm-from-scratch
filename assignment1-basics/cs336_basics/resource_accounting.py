@@ -54,6 +54,27 @@ class RepeatCounter(ResourceCounter):
         return self.get_num_elements(hyper_params) * self.element.get_resource_count(hyper_params)
 
 
+def format_count(count: int, total: int):
+    pct = 100 * count / total
+    return f"{count} ({pct:.2f}%)"
+
+def print_component_resource_counts(counter: ResourceCounter, hyper_params: HyperParams, indent_level: int = 0, total_count: int = -1):
+    INDENT_SIZE = 2
+    indent = " " * (indent_level * INDENT_SIZE) if indent_level > 0 else ""
+    total = counter.get_resource_count(hyper_params) if total_count == -1 else total_count
+    if isinstance(counter, RepeatCounter):
+        count = counter.get_resource_count(hyper_params)
+        print(f"{indent}{counter.name} x{counter.get_num_elements(hyper_params)}: {format_count(count, total)}")
+        print_component_resource_counts(counter.element, hyper_params, indent_level + 1, count)
+    elif isinstance(counter, CompositeCounter):
+        composite_count = counter.get_resource_count(hyper_params)
+        print(f"{indent}{counter.name}: {format_count(composite_count, total)}")
+        for child in counter.children:
+            print_component_resource_counts(child, hyper_params, indent_level + 1, composite_count)
+    else:
+        print(f"{indent}{counter.name}: {format_count(counter.get_resource_count(hyper_params), total)}")
+
+
 def create_transformer_params_counter():
     """
     Creates a resource counter that returns the total
@@ -146,6 +167,8 @@ def gpt2_xl_forward_pass_flops():
     flops = counter.get_resource_count(config)
 
     print(f"GPT2 XL architecture requires {flops} FLOPs for matrix multiplies in the forward pass.")
+    print(f"GPT2 XL component FLOPs breakdown:")
+    print_component_resource_counts(counter, config)
 
 if __name__ == '__main__':
     gpt2_xl_trainable_params()

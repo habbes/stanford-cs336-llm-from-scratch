@@ -1838,3 +1838,43 @@ GPT2 XL architecture requires 3426487500800 FLOPs for matrix multiplies in the f
 ```
 
 There **3,426,487,500,800** FLOPs in the matrix multiplies in the forward pass assuming a batch size of 1.
+
+#### 3.5.3.c Which parts of the model require the most FLOPs
+
+> Based on your analysis above, which parts of the model require the most FLOPs?
+>
+> **Deliverable**: A one-to-two sentence response
+
+To answer this question, I've added a helper function that prints out the breakdown
+of FLOPs usage across the different modules:
+
+```sh
+uv run python -m cs336_basics.resource_accounting
+```
+
+```sh
+GPT2 XL component FLOPs breakdown:
+TransformerLM: 3426487500800 (100.00%)
+  TransformerLayers x48: 3261805363200 (95.19%)
+    TransformerBlock: 67954278400 (2.08%)
+      MultiHeadSelfAttention: 25801523200 (37.97%)
+        Wq(x): 5242880000 (20.32%)
+        Wk(x): 5242880000 (20.32%)
+        Wv(x): 5242880000 (20.32%)
+        RoPE(Q): 3276800 (0.01%)
+        RoPE(K): 3276800 (0.01%)
+        ScaledDotProductAttention: 6710886400 (26.01%)
+          Q @ K.T: 3355443200 (50.00%)
+          weights @ V: 3355443200 (50.00%)
+        Wo(y): 3355443200 (13.00%)
+      FFSwiGLU: 42152755200 (62.03%)
+        W1(x): 14050918400 (33.33%)
+        W3(x): 14050918400 (33.33%)
+        W2(x): 14050918400 (33.33%)
+  Linear (LM Head): 164682137600 (4.81%)
+```
+
+As expected, the transformer layers cumulatively account for most of the FLOPs (over 95%). Within
+a transformer block, I'm surprised that the linear layers of the `FFSwiGLU` account for more FLOPs (62%)
+than the multi head attention block (37%). This is mainly due to project into and out of a higher
+dimenssion (`d_ff` = 2.68 * `d_model)`.
