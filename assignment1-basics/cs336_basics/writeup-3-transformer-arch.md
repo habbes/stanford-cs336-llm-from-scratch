@@ -1878,3 +1878,102 @@ As expected, the transformer layers cumulatively account for most of the FLOPs (
 a transformer block, I'm surprised that the linear layers of the `FFSwiGLU` account for more FLOPs (62%)
 than the multi head attention block (~36%). This is mainly due to project into and out of a higher
 dimenssion (`d_ff` = 2.68 * `d_model)`.
+
+#### 3.5.3.d FLOPs accounting for GPT2 small, medium and large
+
+> Repeat your analysis with GPT-2 small (12 layers, 768 d_model, 12 heads), GPT-2 medium 
+(24 layers, 1024 d_model, 16 heads), and GPT-2 large (36 layers, 1280 d_model, 20 heads).As 
+the model size increases, which parts of the Transformer LM take up proportionally more or 
+less of the total FLOPs
+>
+> **Deliverable**: For each model, provide a breakdown of model components and its associated 
+FLOPs (as a proportion of the total FLOPs required for a forward pass). In addition, provide 
+a one-to-two sentence description of how varying the model size changes the proportional 
+FLOPs of each component.
+
+I've added the breakdowns to the resource accounting module:
+
+```sh
+uv run python -m cs336_basics.resource_accounting
+```
+
+**GPT-2 Small breakdown**:
+
+```sh
+GPT2 Small architecture requires 296517894144 FLOPs for matrix multiplies in the forward pass.
+GPT2 Small component FLOPs breakdown:
+TransformerLM: 296517894144 (100.00% of parent) (100.00% of total)
+  TransformerLayers x12: 217470468096 (73.34% of parent) (73.34% of total)
+    TransformerBlock: 18122539008 (8.33% of parent) (6.11% of total)
+      MultiHeadSelfAttention: 8458862592 (46.68% of parent) (2.85% of total)
+        Wq(x): 1207959552 (14.28% of parent) (0.41% of total)
+        Wk(x): 1207959552 (14.28% of parent) (0.41% of total)
+        Wv(x): 1207959552 (14.28% of parent) (0.41% of total)
+        RoPE(Q): 1572864 (0.02% of parent) (0.00% of total)
+        RoPE(K): 1572864 (0.02% of parent) (0.00% of total)
+        ScaledDotProductAttention: 3221225472 (38.08% of parent) (1.09% of total)
+          Q @ K.T: 1610612736 (50.00% of parent) (0.54% of total)
+          weights @ V: 1610612736 (50.00% of parent) (0.54% of total)
+        Wo(y): 1610612736 (19.04% of parent) (0.54% of total)
+      FFSwiGLU: 9663676416 (53.32% of parent) (3.26% of total)
+        W1(x): 3221225472 (33.33% of parent) (1.09% of total)
+        W3(x): 3221225472 (33.33% of parent) (1.09% of total)
+        W2(x): 3221225472 (33.33% of parent) (1.09% of total)
+  Linear (LM Head): 79047426048 (26.66% of parent) (26.66% of total)
+```
+
+**GPT-2 Medium breakdown**
+
+```sh
+GPT2 Medium architecture requires 830272962560 FLOPs for matrix multiplies in the forward pass.
+GPT2 Medium component FLOPs breakdown:
+TransformerLM: 830272962560 (100.00% of parent) (100.00% of total)
+  TransformerLayers x24: 724876394496 (87.31% of parent) (87.31% of total)
+    TransformerBlock: 30203183104 (4.17% of parent) (3.64% of total)
+      MultiHeadSelfAttention: 12889096192 (42.67% of parent) (1.55% of total)
+        Wq(x): 2147483648 (16.66% of parent) (0.26% of total)
+        Wk(x): 2147483648 (16.66% of parent) (0.26% of total)
+        Wv(x): 2147483648 (16.66% of parent) (0.26% of total)
+        RoPE(Q): 2097152 (0.02% of parent) (0.00% of total)
+        RoPE(K): 2097152 (0.02% of parent) (0.00% of total)
+        ScaledDotProductAttention: 4294967296 (33.32% of parent) (0.52% of total)
+          Q @ K.T: 2147483648 (50.00% of parent) (0.26% of total)
+          weights @ V: 2147483648 (50.00% of parent) (0.26% of total)
+        Wo(y): 2147483648 (16.66% of parent) (0.26% of total)
+      FFSwiGLU: 17314086912 (57.33% of parent) (2.09% of total)
+        W1(x): 5771362304 (33.33% of parent) (0.70% of total)
+        W3(x): 5771362304 (33.33% of parent) (0.70% of total)
+        W2(x): 5771362304 (33.33% of parent) (0.70% of total)
+  Linear (LM Head): 105396568064 (12.69% of parent) (12.69% of total)
+```
+
+**GPT-2 Large breakdown**
+
+```sh
+GPT2 Large architecture requires 1581464944640 FLOPs for matrix multiplies in the forward pass.
+GPT2 Large component FLOPs breakdown:
+TransformerLM: 1581464944640 (100.00% of parent) (100.00% of total)
+  TransformerLayers x32: 1449719234560 (91.67% of parent) (91.67% of total)
+    TransformerBlock: 45303726080 (3.12% of parent) (2.86% of total)
+      MultiHeadSelfAttention: 18124636160 (40.01% of parent) (1.15% of total)
+        Wq(x): 3355443200 (18.51% of parent) (0.21% of total)
+        Wk(x): 3355443200 (18.51% of parent) (0.21% of total)
+        Wv(x): 3355443200 (18.51% of parent) (0.21% of total)
+        RoPE(Q): 2621440 (0.01% of parent) (0.00% of total)
+        RoPE(K): 2621440 (0.01% of parent) (0.00% of total)
+        ScaledDotProductAttention: 5368709120 (29.62% of parent) (0.34% of total)
+          Q @ K.T: 2684354560 (50.00% of parent) (0.17% of total)
+          weights @ V: 2684354560 (50.00% of parent) (0.17% of total)
+        Wo(y): 2684354560 (14.81% of parent) (0.17% of total)
+      FFSwiGLU: 27179089920 (59.99% of parent) (1.72% of total)
+        W1(x): 9059696640 (33.33% of parent) (0.57% of total)
+        W3(x): 9059696640 (33.33% of parent) (0.57% of total)
+        W2(x): 9059696640 (33.33% of parent) (0.57% of total)
+  Linear (LM Head): 131745710080 (8.33% of parent) (8.33% of total)
+```
+
+As the model size increases:
+- The relative FLOPs of the final Linear layer (LM Head) decreases
+- The relative FLOPs of the aggregate transformer layers increases
+- THe relative FLOPs of the multi head attention block within a transformer block decrease
+- The relative FLOPs of the FFSwiGLU linear layers within a transformer block increase

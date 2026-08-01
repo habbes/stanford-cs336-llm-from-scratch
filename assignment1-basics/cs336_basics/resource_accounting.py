@@ -162,6 +162,30 @@ def get_gpt2_xl_config():
         batch_size=1
     )
 
+def get_gpt2_small_config():
+    config = get_gpt2_xl_config()
+    config.num_layers = 12
+    config.d_model = 768
+    config.d_ff = 2048 # (8/3) * 768
+    config.num_heads = 12
+    return config
+
+def get_gpt2_medium_config():
+    config = get_gpt2_xl_config()
+    config.num_layers = 24
+    config.d_model = 1024
+    config.d_ff = 2752 # nearest multiple of 64 to (8/3) * 1024
+    config.num_heads = 16
+    return config
+
+def get_gpt2_large_config():
+    config = get_gpt2_xl_config()
+    config.num_layers = 32
+    config.d_model = 1280
+    config.d_ff = 3456 # nearest multiple of 64 to (8/3) * 1280
+    config.num_heads = 20
+    return config
+
 def gpt2_xl_trainable_params():
     gpt2_xl_config = get_gpt2_xl_config()
     gpt2_xl_params_counter = create_transformer_params_counter()
@@ -172,17 +196,43 @@ def gpt2_xl_trainable_params():
 
     print(f"GPT2 XL architecture has {param_count} trainable params and requires {memory_required} bytes, {memory_in_gigs} GiB")
 
-def gpt2_xl_forward_pass_flops():
-    config = get_gpt2_xl_config()
+
+def print_forward_pass_flops_breakdown(name: str, config: HyperParams):
     counter = create_transformer_flops_counter()
     flops = counter.get_resource_count(config)
 
-    print(f"GPT2 XL architecture requires {flops} FLOPs for matrix multiplies in the forward pass.")
-    print(f"GPT2 XL component FLOPs breakdown:")
+    print(f"{name} architecture requires {flops} FLOPs for matrix multiplies in the forward pass.")
+    print(f"{name} component FLOPs breakdown:")
     print_component_resource_counts(counter, config)
+
+def gpt2_xl_forward_pass_flops():
+    config = get_gpt2_xl_config()
+    print_forward_pass_flops_breakdown("GPT2 XL", config)
+
+def gpt2_small_forward_pass_flops():
+    config = get_gpt2_small_config()
+    print_forward_pass_flops_breakdown("GPT2 Small", config)
+
+def gpt2_medium_forward_pass_flops():
+    config = get_gpt2_medium_config()
+    print_forward_pass_flops_breakdown("GPT2 Medium", config)
+
+def gpt2_large_forward_pass_flops():
+    config = get_gpt2_large_config()
+    print_forward_pass_flops_breakdown("GPT2 Large", config)
+
 
 if __name__ == '__main__':
     gpt2_xl_trainable_params()
     print()
     gpt2_xl_forward_pass_flops()
+    print()
+    print()
+    gpt2_small_forward_pass_flops()
+    print()
+    print()
+    gpt2_medium_forward_pass_flops()
+    print()
+    print()
+    gpt2_large_forward_pass_flops()
 
