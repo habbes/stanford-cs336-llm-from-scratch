@@ -224,7 +224,7 @@ assigning an unnormalized weight to each possible
 token in the vocabulary. We turn these unnormalized weights in a probablity distribution using `softmax`:
 
 ```python
-P[x[i + 1] | x[1:i]] = softmax(O[i])[x[i + 1]]
+P[x[i + 1] | x[1:i]] = softmax(O[i])[x[i + 1]] = (e**O[i][x[i + 1]]) / sum(e**O[i][j] for j in range(vocab_size))
 ```
 
 Where `O[i]` is the output vocab-sized vector correspoding to the training sequence `x[1:i]`, whose target output is the token `x[i + 1]
