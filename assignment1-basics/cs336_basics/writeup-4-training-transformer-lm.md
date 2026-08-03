@@ -228,3 +228,51 @@ P[x[i + 1] | x[1:i]] = softmax(O[i])[x[i + 1]] = (e**O[i][x[i + 1]]) / sum(e**O[
 ```
 
 Where `O[i]` is the output vocab-sized vector correspoding to the training sequence `x[1:i]`, whose target output is the token `x[i + 1]
+
+### 4.1.a Implementing cross-entropy loss
+
+Implementing the cross-entropy loss requires some care with numerical issues, just like in the case of 
+`softmax`.
+
+> **Deliverable**: Write a function to compute the cross-entropy loss, which takes in predicted logits `o[i]`
+> and targets `x[i + 1]` and computes the cross-entropy `l[i] = -log * softmax(o[i])[x[i + 1]]`.
+> Your function should handle the following:
+>
+> - Subtract the largest element for numerical stability
+> - Cancel out `log` and `exp` whenever possible
+> - Handle any additional batch dimensions and return the average loss across the batch. As with section 3.2 we assume batch-like dimensions always come first, before the vocabulary size dimension.
+>
+> Implement`adapters.run_cross_entropy`, then run `uv run pytest -k test_cross_entropy` to 
+> test your implementation.
+
+Based on the hints above, we can transform the `-log * softmax(o[i])[x[i + 1]]` for better numerical stability, avoid over and underflows.
+
+Here's the expanded version of the formula:
+
+```python
+exps = exp(o[i])
+l[i] = -log * ((exps[x[i + 1]]) / sum(exps[j] for j in range(vocab_size)))
+```
+
+First, like in softmax, we can subtract the largest values (review `softmax` implementation to see why this works):
+
+```python
+exps = exp(o[i] - max(o[i]))
+l[i] = -log * ((exps[x[i + 1]]) / sum(exps[j] for j in range(vocab_size)))
+```
+
+Now, remember the logarithmic identity `log(a / b) = log(a) - log(b)`. We can use
+this to transform the formula above to:
+
+```python
+l[i] = - (log(exps[x[i + 1]]) - log(sum(exps)))
+# which turns to
+l[i] = -log(exps[x[i + 1]]) + log(sum(exps)))
+```
+
+Since `log(e**x) == x`, we can cancel out the `log` and `exp` in the first term. We can't
+really simplify the second term though since it's a log of sums (and not a log of products).
+
+```python
+l[i] = -x[i + 1] + log(sum(exps))
+```
