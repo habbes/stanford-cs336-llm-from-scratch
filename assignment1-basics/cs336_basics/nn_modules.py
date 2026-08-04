@@ -23,6 +23,32 @@ def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     sum_exps = torch.sum(exps, dim=dim, keepdim=True)
     return exps / sum_exps
 
+def cross_entropy(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """
+    Computes the cross-entropy loss given the batched tensor of preditected logits x
+    and the tensor of target token indices y.
+
+    Each item in the batch x is vocab-sized vector of unnormalized logits assinging a weight for each possible output token.
+    Each item in y is the index of the target token for the corresponding batch item.
+    The cross-entropy loss for each batch item i is -log(softmax(x[y[i]])).
+
+    The aggregate loss is averaged across the entire batch. This function supports
+    multiple batch dimensions, e.g. (batch_size, seq_len, vocab_size)
+    
+    Args:
+        x (torch.Tensor): The input tensor. Dimensions: (batch_size,..., vocab_size)
+        y (torch.Tensor): The tensor of target tokens. Each item is the index of the target token for the corresponding batch item.
+            Dimensions: (batch_size,...)
+    """
+    # Let's gather the logits of the target tokens for each item in the batch
+    y = y.unsqueeze(-1) # (b, n) -> (b, n, 1) to match the dimensions of x
+    target_logits = torch.gather(x, dim=-1, index=y) # shape is (b, n, 1)
+    target_logits = target_logits.squeeze(-1) # (b, n, 1) -> (b, n)
+
+    ## TODO complete implementation
+    
+
+
 def scaled_dot_product_attention(queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
     """
     Performs scaled dot-product attention
