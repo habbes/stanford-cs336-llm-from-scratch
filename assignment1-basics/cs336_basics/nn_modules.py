@@ -40,12 +40,20 @@ def cross_entropy(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y (torch.Tensor): The tensor of target tokens. Each item is the index of the target token for the corresponding batch item.
             Dimensions: (batch_size,...)
     """
+    maxes = torch.max(x, dim=-1, keepdim=True).values # shape: (b, n, 1)
+    x = x - maxes
+    exps = torch.exp(x)
+    sum_exps = torch.sum(exps, dim=-1, keepdim=True)
+
     # Let's gather the logits of the target tokens for each item in the batch
     y = y.unsqueeze(-1) # (b, n) -> (b, n, 1) to match the dimensions of x
     target_logits = torch.gather(x, dim=-1, index=y) # shape is (b, n, 1)
     target_logits = target_logits.squeeze(-1) # (b, n, 1) -> (b, n)
 
-    ## TODO complete implementation
+    item_loss = -target_logits + torch.log(sum_exps)
+    avg_loss = torch.mean(item_loss)
+    return avg_loss
+
     
 
 

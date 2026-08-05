@@ -782,6 +782,9 @@ def test_resource_counter():
     assert count == expected, f"Got {count}, but expected {expected} trainable params"
 
     print("Test passed!")
+
+def test_cross_entropy():
+    print("SCENARIO: Verify cross_entropy implementation.")
     
 
 if __name__ == "__main__": 

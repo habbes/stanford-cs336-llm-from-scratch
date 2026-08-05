@@ -258,7 +258,7 @@ First, like in softmax, we can subtract the largest values (review `softmax` imp
 
 ```python
 exps = exp(o[i] - max(o[i]))
-l[i] = -log * ((exps[x[i + 1]]) / sum(exps[j] for j in range(vocab_size)))
+l[i] = -log((exps[x[i + 1]]) / sum(exps[j] for j in range(vocab_size)))
 ```
 
 Now, remember the logarithmic identity `log(a / b) = log(a) - log(b)`. We can use
