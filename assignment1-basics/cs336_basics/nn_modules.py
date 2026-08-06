@@ -30,7 +30,7 @@ def cross_entropy(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 
     Each item in the batch x is vocab-sized vector of unnormalized logits assinging a weight for each possible output token.
     Each item in y is the index of the target token for the corresponding batch item.
-    The cross-entropy loss for each batch item i is -log(softmax(x[y[i]])).
+    The cross-entropy loss for each batch item i is -log(softmax(x[i][y[i]])).
 
     The aggregate loss is averaged across the entire batch. This function supports
     multiple batch dimensions, e.g. (batch_size, seq_len, vocab_size)

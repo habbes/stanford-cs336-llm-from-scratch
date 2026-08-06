@@ -276,3 +276,59 @@ really simplify the second term though since it's a log of sums (and not a log o
 ```python
 l[i] = -x[i + 1] + log(sum(exps))
 ```
+
+### 4.1.b Perplexity
+
+Cross-entropy suffices for training, but when we evaluate the model, we also want to report perplexity. 
+For a sequence of length `m` where we suffer cross-entropy losses `l_1`, `l_2`, ..., `l_m`:
+
+![alt text](perplexity-formula.png)
+
+Basically, perplexity is the exponentiated average cross-entropy loss across our tokens.
+We can also think of it as:
+
+```python
+perplexity(x, y) = exp(cross_entropy(x, y))
+```
+
+But what does this mean, why do we exponeniate the average cross-entropy/negative-likelihood loss?
+Well an increase and decrease in cross_entropy also increases or decreases perplexity respectively,
+but at different scales. It's harder to get an intuition of differnet cross-entropy values because
+comparing logarithms is not very intuitive for humans. Perplexity "undoes" the logarithm
+to make the loss easier to interpret, transforming the loss from a logarithm scale to a linear scale.
+
+
+Intuitively, perplexity measures the performance of a model based on how confused it is.
+Mathematically, it's also equivalent to the inverse of the probability assigned to the correct next token. It
+tells how likely it was to pick the correct token based on a compressed number of choices.
+
+Mathematically
+
+Let `P` be the probability assigned to the correct next token by the model:
+
+```python
+H = -ln(P)
+PPL = exp(H) = exp(-ln(P)) = 1/(exp(ln(P))) = 1/P
+```
+
+
+Let's take the following example:
+
+The model assigns a 10% `0.1`probability to the correct
+next token.
+
+The cross-entropy loss `l = -log(0.1)` is  `2.3026`.
+
+The perplexity is `exp(2.3026)` which is equivalent to `1/0.1` which is `10`.
+
+A perplexity of 10 means the correct token had a 1/10 chance of being picked.
+It tells you the model is guessing as if it were choosing between 10 equally likely options.
+
+So if the vocab has 50,000 tokens, a perplexity of 10 means the model is performign really well.
+A random guess would have a perplexity of 50,000.By achieving a perplexity of 10,
+the model has used context to compress a massive dictionary of 50,000 possibilities down to a tiny
+shortlist of just 10 realistic options.
+
+A perplexity of 1, means the model is always certain of the next token.
+
+TODO: example of scale interpretation.
