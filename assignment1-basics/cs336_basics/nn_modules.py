@@ -39,6 +39,9 @@ def cross_entropy(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         x (torch.Tensor): The input tensor. Dimensions: (batch_size,..., vocab_size)
         y (torch.Tensor): The tensor of target tokens. Each item is the index of the target token for the corresponding batch item.
             Dimensions: (batch_size,...)
+    
+    Return:
+        loss (torch.Tensor): The average cross-entropy loss.
     """
     maxes = torch.max(x, dim=-1, keepdim=True).values # shape: (b, n, 1)
     x = x - maxes
@@ -54,7 +57,8 @@ def cross_entropy(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     avg_loss = torch.mean(item_loss)
     return avg_loss
 
-    
+def perplexity(cross_entropy_loss: torch.Tensor):
+    return torch.exp(cross_entropy_loss)
 
 
 def scaled_dot_product_attention(queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:

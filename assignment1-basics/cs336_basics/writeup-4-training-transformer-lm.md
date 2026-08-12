@@ -331,4 +331,10 @@ shortlist of just 10 realistic options.
 
 A perplexity of 1, means the model is always certain of the next token.
 
-TODO: example of scale interpretation.
+A logarithmic scale compresses huge differences into small numbers. Small changes in cross-entropy
+loss represent massive changes in how smart the model is. By exponentiating the loss, perplexity
+undoes the that compression and converts the logarithmic scale back into a standard, linear scale.
+
+Let's say Model A has a cross-entropy loss of 4.6 and Model B has a cross-entropy loss of 3.0.
+The 1.6 difference may seem deceptly small. But the perplexity of A is 100 and B is 20. This
+makes it clear to see that B is 5x more capable.
