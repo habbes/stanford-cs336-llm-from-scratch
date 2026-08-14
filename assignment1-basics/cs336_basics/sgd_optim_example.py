@@ -78,7 +78,7 @@ def run_training_loop(lr, iters):
     print("Done.")
 
 if __name__ == "__main__":
-    run_training_loop(lr=1, iters=100)
+    run_training_loop(lr=1, iters=10)
     print()
     run_training_loop(lr=1e1, iters=10)
     print()

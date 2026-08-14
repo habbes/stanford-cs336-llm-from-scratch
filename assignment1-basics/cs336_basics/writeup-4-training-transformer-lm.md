@@ -367,3 +367,78 @@ a modified variant of SGD where the learning rate decays over time based on the 
 ![alt text](sgd_with_decaying_learning_rate.png)
 
 I've implement this optimizer in [`sgd_optim_example.py`](./sgd_optim_example.py).
+
+#### Learning rate tuning
+
+> As we will see, one of the hyperparameters that affects training the most is the learning rate.
+> Let’s see that in practice in our toy example. Run the SGD example above with three other values 
+> for the learning rate: 1e1, 1e2, and 1e3, for just 10 training iterations. What happens with the loss
+> for each of these learning rates? Does it decay faster, slower, or does it diverge (i.e., increase over 
+> the course of training)?
+>
+> **Deliverable**: A one-to-two sentence response with the behaviors you observed
+
+To answer this questions, I added the scenarios to `sgd_optim_example.py`, then run as:
+
+```sh
+uv run python -m cs336_basics.sgd_optim_example
+```
+
+```sh
+Running training loop with LR=1 and num iterations=10
+22.424942016601562
+21.536914825439453
+20.932065963745117
+20.45145034790039
+20.04446792602539
+19.687503814697266
+19.367321014404297
+19.075620651245117
+18.806804656982422
+18.556882858276367
+Done.
+
+Running training loop with LR=10.0 and num iterations=10
+25.632505416870117
+16.404802322387695
+12.092920303344727
+9.461418151855469
+7.663748741149902
+6.3541259765625
+5.358862400054932
+4.579300880432129
+3.9545862674713135
+3.4448840618133545
+Done.
+
+Running training loop with LR=100.0 and num iterations=10
+29.442251205444336
+29.442249298095703
+5.0514912605285645
+0.12089355289936066
+2.01826404930104e-16
+2.249480452710394e-18
+7.574792075885271e-20
+4.512355867594862e-21
+3.8709906965819494e-22
+4.301100949282367e-23
+Done.
+
+Running training loop with LR=1000.0 and num iterations=10
+23.219282150268555
+8382.1611328125
+1447731.25
+161044608.0
+13044613120.0
+823264477184.0
+42263702929408.0
+1818365404381184.0
+6.702107057350246e+16
+2.1521211131680522e+18
+Done.
+```
+
+Answer:
+
+When learning rate is 1e1 the loss decays much faster than with lr=1. When lr is 1e2,  the loss quickly decays
+to near 0 then starts to oscillate erratically above the minimum. When lr is 1e3 the loss diverges to very large values.
