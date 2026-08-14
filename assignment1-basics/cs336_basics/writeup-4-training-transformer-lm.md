@@ -338,3 +338,32 @@ undoes the that compression and converts the logarithmic scale back into a stand
 Let's say Model A has a cross-entropy loss of 4.6 and Model B has a cross-entropy loss of 3.0.
 The 1.6 difference may seem deceptly small. But the perplexity of A is 100 and B is 20. This
 makes it clear to see that B is 5x more capable.
+
+## 4.2. The SGD Optimizer
+
+Next, we begin exploring optimizers. Optimizers update the value of learnable parameters based on the loss. A gradient-based optimizer
+updates each parameter based on the gradient of the loss with respect to the parameter.
+
+The simplest gradient based optimizer is Stochastic Gradient Descent (SGD). We start with randomly initialized parameters `theta[0]`.
+Then for each step *t = 0, ..., T-1*, we perform the following update:
+
+```python
+theta[t + 1] = theta[t] - alpha[t] * gradient(loss(theta[t], B[t]))
+```
+
+![alt text](sgd_update_formula.png)
+
+Where:
+- `B[t]` is a random batch of data sampled from the dataset D
+- `alpha` is the learning rate
+
+The learning rate and batch size are hyperparameters.
+
+### 4.2.1 Implement SGD in PyTorch.
+
+To demonstrate the `Optimizer` API in PyTorch (base class used to implement custom optimizer), we implement
+a modified variant of SGD where the learning rate decays over time based on the formula:
+
+![alt text](sgd_with_decaying_learning_rate.png)
+
+I've implement this optimizer in [`sgd_optim_example.py`](./sgd_optim_example.py).
