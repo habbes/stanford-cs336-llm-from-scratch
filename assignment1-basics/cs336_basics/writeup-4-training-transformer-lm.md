@@ -249,6 +249,8 @@ Based on the hints above, we can transform the `-log * softmax(o[i])[x[i + 1]]` 
 
 Here's the expanded version of the formula:
 
+![alt text](simplify-cross-entropy-loss-for-numerical-stability.png)
+
 ```python
 exps = exp(o[i])
 l[i] = -log * ((exps[x[i + 1]]) / sum(exps[j] for j in range(vocab_size)))
