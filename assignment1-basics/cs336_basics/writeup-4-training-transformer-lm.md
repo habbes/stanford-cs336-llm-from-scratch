@@ -444,3 +444,48 @@ Answer:
 
 When learning rate is 1e1 the loss decays much faster than with lr=1. When lr is 1e2,  the loss quickly decays
 to near 0 then starts to oscillate erratically above the minimum. When lr is 1e3 the loss diverges to very large values.
+
+## 4.3 AdamW Optimizer
+
+AdamW is a stateful optimizer that keeps track of running estimates of the first and second moments for each parameter.
+Before implementing it, I'm curious to understand the rationale behind the evolution from SGD to AdamW and
+the optimizer's algorithm.
+
+AdamW is one of a number of adapative optimizer algorithms, we can trace the evolution from **SGD** -> **SGD with momentum** -> **AdaGrad** -> **RMSProp** -> **Adam** -> **AdamW**.
+
+Standard SGD uses the same learning rate to update all parameters. And at each time step
+SGD uses only the current gradient to determine the magnitude and direction of the update. SGD with momentum combines the current
+gradient with a running velocity based on previous gradients.
+
+**SGD**:
+
+```python
+param[t + 1] = param[t] - learning_rate * gradient[t]
+```
+
+**SGD with momentum**:
+
+```python
+v[t] = beta * v[t - 1] + gradient[t]
+param[t + 1] = param[t] - learning_rate * v[t]
+```
+
+
+The other algorithms are a bit more complex but are also based on the idea
+of maintaining state across timesteps and adjusting how each parameter is updated instead of relying only on the current gradient
+and a global learning rate. Adam aims to combine the benefits of AdaGrad and RMSProp, and AdamW is a variant of Adam that makes weight decay more
+effective. So I'll start with with a review of the Adam optimization algorithm.
+
+### 4.3.1 Adam optimizer
+
+**Source: [Adam: A method for stochastic optimization, 2015](https://arxiv.org/pdf/1412.6980)**
+
+The name Adam is derived from "adapative moment estimation". It was proposed as a method for "efficient" stochastic optimization
+that only requires first-order gradients (i.e. first derivatives only, no need for 2nd or higher derivatives) with "little memory
+requirement". Note that here the "little memory requirement" is relative to approaches that computer higher-order derivatives. Adam
+stores extra state for each parameter, so it requires O(n) memory with respect to model parameter count, so this is definitely less efficient
+than standard SGD. But consider efficient compares to methods with require quadratic memory for example.
+
+It computes adaptive learning rates for each parameter from estimates of the first and second moments of the 
+gradients. The first moment refers to the mean (mean of g) and the second moment to the variance (mean of g**2) (in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance). Adam doesn't compute the actual mean and variance, which
+would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
