@@ -51,3 +51,30 @@ class SGD(torch.optim.Optimizer):
                 state["t"] = t + 1 # Increment iteration number
         
         return loss
+
+class AdamW(torch.optim.Optimizer):
+    def __init__(self, params, lr, b1, b2, eps, decay_rate):
+        if lr < 0:
+            raise ValueError(f"Invalid learning rate {lr}.")
+        
+        defaults = {
+            "lr": lr,
+            "b1": b1,
+            "b2": b2,
+            "eps": eps,
+            "decay_rate": decay_rate
+        }
+        super().__init__(params, defaults)
+    
+    def step(self, closure: Optional[Callable] = None):
+        loss = None if closure is None else closure()
+
+        for group in self.param_groups:
+            group_state = self.state[group]
+            group_state
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+        
+        # TODO implement
+        return loss
