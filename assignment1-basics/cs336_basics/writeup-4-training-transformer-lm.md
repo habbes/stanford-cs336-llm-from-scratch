@@ -489,3 +489,22 @@ than standard SGD. But consider efficient compares to methods with require quadr
 It computes adaptive learning rates for each parameter from estimates of the first and second moments of the 
 gradients. The first moment refers to the mean (mean of g) and the second moment to the variance (mean of g**2) (in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance). Adam doesn't compute the actual mean and variance, which
 would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
+
+The following is my attempt at deriving the Adam formula from my understanding.
+
+Let's review the SGD update rule again: `param[t + 1] = param[t] - lr * g[t]`.
+
+As mentioned, the update only takes the current gradient value (adjusted by the learning rate) into account. This is prone
+to noisy updates if the gradient is temporarily unstable (changes direction quickly). It's also sensitive to large changes
+in the magnitude of the gradient.
+
+Conceptually, Adam updates the parameter based on the average gradient, rather than just the current gradient. It also
+normalizes the average gradient by the average magnitude of the gradient to reduce sensitivity to gradient's scale.
+
+Conceptually, Adam is an approximation of `param[t + 1] = param[t] - lr * m_1[t]/d[t]`
+
+Where `d[t]` is the average maginute of the gradient. The magnitude in this case is the square gradient (`g**2`).
+So when normalizing, we can take the square root to bring it back to the same scale as the average gradient:
+
+`param[t + 1] = param[t] - lr * m_1[t]/sqrt(m_2[t])` where `m_1` is the average gradient and `m_2` the average
+square gradient.
