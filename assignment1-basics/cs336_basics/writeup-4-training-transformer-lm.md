@@ -119,7 +119,7 @@ we use a loss function `f(x)` based on the output probability of the target toke
 should penalize low probabilities of the expected target token (high loss) and reward high
 probability of the target token.
 
-So for the example `I'm happy -> today', we'll apply the loss function to the output probabilit P_today,
+So for the example "I'm happy -> today", we'll apply the loss function to the output probabilit P_today,
 i.e. `f(P_today)`.
 
 To get the average loss over all the training examples, we'll use a weighted average where the weight
