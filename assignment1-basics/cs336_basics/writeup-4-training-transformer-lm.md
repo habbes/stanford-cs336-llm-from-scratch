@@ -486,9 +486,21 @@ requirement". Note that here the "little memory requirement" is relative to appr
 stores extra state for each parameter, so it requires O(n) memory with respect to model parameter count, so this is definitely less efficient
 than standard SGD. But consider efficient compares to methods with require quadratic memory for example.
 
+The Adam optimization algorithm has the following goals/benefits:
+
+- Support for online and stochastic environments: i.e. loss function is not computed against entire dataset at once, but one at a time, or in minibatches
+- Support for noisy objective functions: noise might be due to the fact that objective function is computed on different batches of data, or inherent to the function itself
+- Support for non-stationary data: the distribution of the data might change across batches of data (i.e. mean, variance, and other characteristics of the dataset may change from on batch to the other)
+- Robust to noisy and sparse gradients: should adapt to sudden gradient spikes, should adapt to cases where gradient is 0 most of the time
+- Robust to gradient rescaling: if step size is directly proportional to gradient (like in SDG), then a sudden scaling factor of the gradient can cause the optimizer to take massive,
+    exploding steps in parameter step, making paramter updates unstable and ruining training. Sensitivy to gradient scale also means changing something seemingly unrelated, like scaling the loss function or batch size, forces you to retune learning rate from scratch.
+
+In short, Adam aims to adapt to a chaotic optimization problem while still being relatively computationally efficient.
+
 It computes adaptive learning rates for each parameter from estimates of the first and second moments of the 
-gradients. The first moment refers to the mean (mean of g) and the second moment to the variance (mean of g**2) (in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance). Adam doesn't compute the actual mean and variance, which
-would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
+gradients. The first moment refers to the mean (mean of g) and the second moment to the variance (mean of g**2) 
+(in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance).
+Adam doesn't compute the actual mean and variance, which would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
 
 The following is my attempt at deriving the Adam formula from my understanding.
 
