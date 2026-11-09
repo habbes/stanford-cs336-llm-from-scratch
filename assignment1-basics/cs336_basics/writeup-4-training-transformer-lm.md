@@ -540,4 +540,4 @@ To prevent the denominator from being 0 when `v[t]` is 0, we can add a small neg
 param[t + 1] = param[t] - lr * (m[t]/sqrt(v[t]) + eps)
 ```
 
-![alt text](adam-conceptual-formula-with-eps)
+![alt text](adam-conceptual-formula-with-eps.png)
