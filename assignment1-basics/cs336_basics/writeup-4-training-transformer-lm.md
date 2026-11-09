@@ -493,7 +493,7 @@ The Adam optimization algorithm has the following goals/benefits:
 - Support for non-stationary data: the distribution of the data might change across batches of data (i.e. mean, variance, and other characteristics of the dataset may change from on batch to the other)
 - Robust to noisy and sparse gradients: should adapt to sudden gradient spikes, should adapt to cases where gradient is 0 most of the time
 - Robust to gradient rescaling: if step size is directly proportional to gradient (like in SDG), then a sudden scaling factor of the gradient can cause the optimizer to take massive,
-    exploding steps in parameter step, making paramter updates unstable and ruining training. Sensitivy to gradient scale also means changing something seemingly unrelated, like scaling the loss function or batch size, forces you to retune learning rate from scratch.
+    exploding steps in parameter space, making paramter updates unstable and ruining training. Sensitivy to gradient scale also means changing something seemingly unrelated, like scaling the loss function or batch size, forces you to retune learning rate from scratch.
 
 In short, Adam aims to adapt to a chaotic optimization problem while still being relatively computationally efficient.
 
@@ -513,10 +513,31 @@ in the magnitude of the gradient.
 Conceptually, Adam updates the parameter based on the average gradient, rather than just the current gradient. It also
 normalizes the average gradient by the average magnitude of the gradient to reduce sensitivity to gradient's scale.
 
-Conceptually, Adam is an approximation of `param[t + 1] = param[t] - lr * m_1[t]/d[t]`
+![alt text](adam-conceptual-formula.png)
 
-Where `d[t]` is the average maginute of the gradient. The magnitude in this case is the square gradient (`g**2`).
-So when normalizing, we can take the square root to bring it back to the same scale as the average gradient:
+Conceptually, Adam is an approximation of `param[t + 1] = param[t] - lr * E(g[t])/sqrt(E(g[t]**2))`
 
-`param[t + 1] = param[t] - lr * m_1[t]/sqrt(m_2[t])` where `m_1` is the average gradient and `m_2` the average
-square gradient.
+E(g[t]) here means the expected gradient at timestep t. Or the average/mean of the gradient. Using
+the average rather than the latest value of the gradient at timestep t, makes the updates more robust to noise
+and sudden spikes.
+
+E[g[t]**2] is the expected variance. As meantioned before, we use the uncentered variance here. This estimates
+the average maginute or "size" of the gradient values (note that gradient values can be positive or negative, but magnitude is always positive).
+We use this normalize/divide the scale of the average gradient. Since the gradient is linear, and variance is squared, we take the
+square root of the variance to bring it to the same scale as the average gradient so the division can be stable. This normalization
+by the variance makes the updates more robust to gradient rescaling.
+
+In machine learning optimization papers, we often use `m` to refer to the first moment, i.e. mean, and `v` to refer to the second
+moment, i.e. variance. So we can rewrite the formula above as:
+
+```python
+param[t + 1] = param[t] - lr * m[t]/sqrt(v[t])
+```
+
+To prevent the denominator from being 0 when `v[t]` is 0, we can add a small neglibile value, epislon, for numerical stability:
+
+```python
+param[t + 1] = param[t] - lr * (m[t]/sqrt(v[t]) + eps)
+```
+
+![alt text](adam-conceptual-formula-with-eps)
