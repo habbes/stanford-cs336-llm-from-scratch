@@ -528,16 +528,149 @@ square root of the variance to bring it to the same scale as the average gradien
 by the variance makes the updates more robust to gradient rescaling.
 
 In machine learning optimization papers, we often use `m` to refer to the first moment, i.e. mean, and `v` to refer to the second
-moment, i.e. variance. So we can rewrite the formula above as:
+moment, i.e. variance.
+
+```python
+m = E(g)
+v = E(g**2)
+```
+
+So we can rewrite the formula above as:
 
 ```python
 param[t + 1] = param[t] - lr * m[t]/sqrt(v[t])
 ```
 
-To prevent the denominator from being 0 when `v[t]` is 0, we can add a small neglibile value, epislon, for numerical stability:
+To prevent a 0 denominator when `v[t]` is 0, we can add a small neglibile value, epislon, for numerical stability:
 
 ```python
-param[t + 1] = param[t] - lr * (m[t]/sqrt(v[t]) + eps)
+param[t + 1] = param[t] - lr * (m[t]/(sqrt(v[t]) + eps))
 ```
 
 ![alt text](adam-conceptual-formula-with-eps.png)
+
+If we were to stop at this point, then we would have some level of resilience to noise and gradient rescaling, but what about sparse gradients, non-stationary data?
+If the update is based on the global mean of all the data seen so far, then it means the current gradient has the same contribution to the mean as each gradient seen in the past.
+This means the more data points and batches we visit, the smaller the impact of the latest gradient to the mean and therefore to the update. The oldest gradient
+seen has just as much impact on the current update as the current mean. So the latest gradient may become relatively useless after seeing enough samples.
+This would be fine if the gradient is mostly uniform or has a stable distribution across batches, but if the distribution changes or is too noisy/erratic, relying on the global
+means the optimizer will not be able to adapt or will take too long to adapt to changes in distribution. If the data has sparse gradients, e.g. parameters in the model
+that are activated by a unique data points that are relatively rare in the dataset, then the mean will be close to zero and a single non-zero gradient over multiple datapoints may not have enough
+impact to tilt the mean enough for a meaninful update.
+
+Adam addresses these concerns by using weighted averages instead of standard mean where every gradient has the same weight. Specifically, Adam uses exponential moving averages where
+past gradient history decays exponentially. This allows the optimizer to recover from sparse gradients or adapt to changing distribution reasonably quickly, while still being reasonably
+resilient to localized noise.
+
+Instead of allocating past gradients individual weights, which would require us to store past gradients in memory, we use the following formulation which is more efficient estimate
+for the exponetial moving average:
+
+```python
+m[t] = beta * m[t-1] + (1 - beta) * g[t]
+```
+
+Where `beta` is a value between [0-1]. This basically determines how much weight the current gradient has on the current parameter versus historical gradients. The closer beta is to 1,
+the less affected it is by the current gradient and the smoother/less noisy m[t] is. The closer beta is to 0, the faster it can adapt to changes in distribution, sparsity, etc.
+
+Note that each step, the weight a specific past gradient decays exponentially. To demonstrate this, let's track the weight of `g[2]` across of a few timesteps, assuming beta = 0.9.
+
+At t = 2, `m2 = beta * m1 + (1 - beta) * g2`, the weight of `g2` is `1 - beta` = 0.1
+
+At t = 3, `m3 = beta * m2 + (1 - beta) * g3` = `beta * (beta * m1 + (1 - beta) * g2) + (1 - beta) * g3`.
+If we extract out `g2`, its weight is `beta * (1 - beta)` == `(beta - beta**2)` = `0.9 - 0.81` = `0.09`.
+
+At t = 4, `m4 = beta * m3 + (1 - beta) * g4` = `beta * (beta * (beta * m1 + (1 - beta) * g2) + (1 - beta) * g3) + (1-beta) * g4`
+Let's extract g2 from `beta * (beta * (beta * m1 + (1 - beta) * g2)`  = `beta * ((beta - beta**2))` = `beta**2 - beta**3` = (0.81 - 0.729) = 0.0081
+
+The pattern is at t, g2's weight is `beta**(t-1) - beta**(t-2)`, so at t = 5, the weight is 0.0729.
+
+ t | g2 weight
+---|-----------
+2  | 0.1
+3  | 0.09
+4  | 0.081
+5  | 0.0729
+10 | 0.03874
+20 | 0.01351
+50 | 0.000573
+
+The weight decays slowly at first then eventually tapers off where it gets so close to 0 it's practically irrelevant to the current update.
+With a starting weight of 0.1, the gradient still retains most of its weight in the next couple of time steps. The local neighbors
+retain considerable influence to the current update compared to much older timesteps.
+
+![alt text](adam-beta1-exponential-weight-decay-graph.png)
+
+The exponential weighted average allows the optimizer to adapt to non-stationary data, noisy functions, sparse gradients, etc.
+
+We'll also apply an exponential weight average to the variance, consequently we'll have beta_1 for the mean `m` and beta_2 for the variance `v`:
+
+```python
+m[t] = beta_1 * m[t-1] + (1 - beta_1) * g[t]
+v[t] = beta_2 * v[t-1] + (1 - beta_2) * g[t]**2
+```
+
+Here's what the weights for `g2**2` look like when `beta_2 == 0.999`
+
+ t    | g2 weight
+------|-----------
+2     | 0.001
+10    | 0.00099
+500   | 0.00061
+1000  | 0.00037
+2000  | 0.00014
+4000  | 0.000018
+6000  | 0.0000
+
+![alt text](adam-beta2-exponential-weight-decay-graph.png)
+
+Based on the update formula above, we can imagine the Adam algorithm to look as follow:
+
+```python
+def update_param(param, lr, beta_1, beta_2, eps, has_converged):
+    m = 0
+    v = 0
+    for not has_converged()
+        g = get_gradient(param)
+        m = beta_1 * m + (1 - beta_1) * g
+        v = beta_2 * m + (1 - beta_2) * (g**2)
+        param.data -= lr * (m/(sqrt(v) + eps))
+
+```
+
+The Adam proposes as good defaults `lr = 0.001`, `beta_1 = 0.9` and `beta_2 = 0.999` and `eps = 10**-8`.
+Note that `beta_2` is larger than `beta_1` by 2 orders of magnitude, this means individual variance has much lower
+weight. Squaring gradients makes them much more noisy, small fluctuations in the gradient lead to much larger changes
+in the variance (squared gradient). So we need a much small weight to keep a noisy spike from having too much influence
+on future updates.
+
+In statistics, there's a formula used to calculate the "center of mass" or effective lookback window of an exponential moving average:
+
+```python
+window_size = 1 / (1 - beta)
+```
+
+Conceptually, this tells how many steps really matter in influencing the average before the influence starts to taper off into irrelevance.
+
+- For first moment, beta_2 = 0.9, 1/(1 - 0.9) = 10 steps
+- For second moment, beta_2 = 0.999, 1 / (1 - 0.999) = 1000 steps
+
+Adam tracks the gradient's *direction* over a short window that's quick to adapt to local twists and turns,
+but tracks the *spread/variance* over a massive, ultra-smooth window. If `v` had a short memory (like 10 steps),
+a single freak batch would cause `v[t]` to shoot straight up, and because `v[t]` lives in the denominator,
+a sudden spike would crush the learning rate for the next several steps, freezing progress.
+Therefore, the heavy smoothing ensures that `v[t]` acts as a stable, reliable denominator. It absorbs high-frequency
+noise and only shifts slowly when the true underlying magnitude of the gradients changes over a long horizon.
+
+We can also corroborate this by looking at the aggregate weight at 10 steps for b1 = 0.9 and 1000 steps at b2 = 0.999.
+
+The aggregate weight of the last n timesteps can be computed by
+
+```python
+aggregate_weight_of_last_n_steps = lambda n: sum(beta**k * (1-beta) for k in range(0, n))
+```
+
+For beta1 = 0.9, n = 10 steps, the aggregate weight is 0.65
+
+For beta2 = 0.999, n = 1000 steps, the aggregate weight is 0.63
+
+The aggregate weights at the respective effective window sizes are almost the same value (0.65 and 0.63)
