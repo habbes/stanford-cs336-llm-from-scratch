@@ -689,8 +689,34 @@ def update_param(param, lr, beta_1, beta_2, eps, has_converged):
 
 ```
 
-This looks good in general based on everything we've discussed so far, however it has one critical issue. We initialize `m` and `v` to 0,
-which means at `t_1`, we have `m[1] = beta_1 * 0 + (1 - beta_1) * g = (1 - beta_1) * g`, i.e. the first update has no history. Since the first
-term is 0, `g_1` is the only gradient influence for the first step, is the only historical influence in the second step (i.e. has much influence as `g_2`)
-and is generally dominant in the first several steps. The problem is that the first gradient is overrepresented in the first several steps and
-it might take a few steps to recalibrate its influence.
+This looks good in general based on everything we've discussed so far, however it has one critical issue.
+
+Based on the formula `beta * m[t-1] + (1 - beta) * g1`, what we're trying to achieve is for 10% of the weight of the average to come from the current gradient, and 90% from past gradients.
+
+However, we initialize `m` and `v` to 0, which means at `t_1`, we have `m[1] = beta_1 * 0 + (1 - beta_1) * g = (1 - beta_1) * g`, i.e. the first update has no history. Since the first
+term is 0, `g_1` is the only gradient influence for the first step:
+
+```python
+m1 = 0.9 * 0 + 0.1 * g1 = 0.1g1
+```
+
+Now let's see the weight distribution between current and past gradients for the next couple of steps:
+
+```python
+m2 = 0.9 (0.1 * g1) + 0.1*g2 = 0.09g1 + 0.1g2
+
+m3 = 0.9 (0.09g1 + 0.1g2) + 0.1g3 = 0.081g1 + 0.09g2 + 0.1g3 = 0.0171(past weights) + 0.1g3
+
+m4 = 0.9 (0.171 + 0.1) + 0.1g4 = 0.2439(past weights) + 0.1g4
+
+m5 = 0.9(0.2439 + 0.1) + 0.1g5 = 0.30951(past weights) + 0.1g5
+```
+
+In step 1, the weight of past gradients 0 and average is determined exclusively by the current gradient,
+in subsequent steps the weight of the past gradient slowly starts to increase, but is still much lower than the expected 0.9.
+This mean that the weight is more skewed towards the current gradient than we desire.
+For example, at step 5 with 0.30951 as the aggregate weight of past gradients,
+then the effective weights are actually 0.30951/(0.30951 + 0.1) and 0.1/(0.30951 + 0.1) which are 76% and 24% respectively.
+
+So my question then is, after how many steps do we arrive at a steady state where the weight distribution is close
+to the desired 90%-10% split between past gradients and current gradient.
