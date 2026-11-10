@@ -674,3 +674,23 @@ For beta1 = 0.9, n = 10 steps, the aggregate weight is 0.65
 For beta2 = 0.999, n = 1000 steps, the aggregate weight is 0.63
 
 The aggregate weights at the respective effective window sizes are almost the same value (0.65 and 0.63)
+
+Now let's dive back to the algorithm we have so far:
+
+```python
+def update_param(param, lr, beta_1, beta_2, eps, has_converged):
+    m = 0
+    v = 0
+    for not has_converged()
+        g = get_gradient(param)
+        m = beta_1 * m + (1 - beta_1) * g
+        v = beta_2 * m + (1 - beta_2) * (g**2)
+        param.data -= lr * (m/(sqrt(v) + eps))
+
+```
+
+This looks good in general based on everything we've discussed so far, however it has one critical issue. We initialize `m` and `v` to 0,
+which means at `t_1`, we have `m[1] = beta_1 * 0 + (1 - beta_1) * g = (1 - beta_1) * g`, i.e. the first update has no history. Since the first
+term is 0, `g_1` is the only gradient influence for the first step, is the only historical influence in the second step (i.e. has much influence as `g_2`)
+and is generally dominant in the first several steps. The problem is that the first gradient is overrepresented in the first several steps and
+it might take a few steps to recalibrate its influence.
