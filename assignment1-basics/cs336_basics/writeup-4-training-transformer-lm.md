@@ -517,13 +517,13 @@ normalizes the average gradient by the average magnitude of the gradient to redu
 
 Conceptually, Adam is an approximation of `param[t + 1] = param[t] - lr * E(g[t])/sqrt(E(g[t]**2))`
 
-E(g[t]) here means the expected gradient at timestep t. Or the average/mean of the gradient. Using
-the average rather than the latest value of the gradient at timestep t, makes the updates more robust to noise
+`E(g[t])` here means the expected gradient at timestep `t`. Or the average/mean of the gradient. Using
+the average rather than the latest value of the gradient at timestep `t`, makes the updates more robust to noise
 and sudden spikes.
 
-E[g[t]**2] is the expected variance. As meantioned before, we use the uncentered variance here. This estimates
+`E[g[t]**2]` is the expected variance. As meantioned before, we use the uncentered variance here. This estimates
 the average maginute or "size" of the gradient values (note that gradient values can be positive or negative, but magnitude is always positive).
-We use this normalize/divide the scale of the average gradient. Since the gradient is linear, and variance is squared, we take the
+We use this to normalize/divide the scale of the average gradient. Since the gradient is linear, and variance is squared, we take the
 square root of the variance to bring it to the same scale as the average gradient so the division can be stable. This normalization
 by the variance makes the updates more robust to gradient rescaling.
 
@@ -582,7 +582,11 @@ If we extract out `g2`, its weight is `beta * (1 - beta)` == `(beta - beta**2)` 
 At t = 4, `m4 = beta * m3 + (1 - beta) * g4` = `beta * (beta * (beta * m1 + (1 - beta) * g2) + (1 - beta) * g3) + (1-beta) * g4`
 Let's extract g2 from `beta * (beta * (beta * m1 + (1 - beta) * g2)`  = `beta * ((beta - beta**2))` = `beta**2 - beta**3` = (0.81 - 0.729) = 0.0081
 
-The pattern is at t, g2's weight is `beta**(t-1) - beta**(t-2)`, so at t = 5, the weight is 0.0729.
+![alt text](adam-g2-weight-breakdown.png)
+
+The pattern is at t, g2's weight is `beta**(t-2) - beta**(t-1)`, so at t = 5, the weight is 0.0729.
+
+![alt text](adam-g2-weight-pattern.png)
 
  t | g2 weight
 ---|-----------
@@ -665,6 +669,8 @@ We can also corroborate this by looking at the aggregate weight at 10 steps for 
 
 The aggregate weight of the last n timesteps can be computed by
 
+![alt text](adam-aggregate-weight-of-last-n-steps-breakdown.png)
+
 ```python
 aggregate_weight_of_last_n_steps = lambda n: sum(beta**k * (1-beta) for k in range(0, n))
 ```
@@ -720,3 +726,47 @@ then the effective weights are actually 0.30951/(0.30951 + 0.1) and 0.1/(0.30951
 
 So my question then is, after how many steps do we arrive at a steady state where the weight distribution is close
 to the desired 90%-10% split between past gradients and current gradient.
+
+To answer this, let's start with how to compute the aggregate weight of all previous steps, based on the formula we already derived above:
+
+![alt text](adam-aggregate-weight-of-previous-steps.png)
+
+```python
+agg_weight_of_prev_steps = (1 - beta) * sum(beta ** k, for k = 0..t)
+```
+
+Let's try to factor out the summation to get a simplified formula:
+
+![alt text](adam-aggregate-weight-simplification.png)
+
+We get:
+
+```python
+agg_weight_of_prev_steps = 1 - beta**t
+```
+
+Now I want to know, how many steps do we need until we get to aggregate weight of 0.9,
+i.e. assume the aggregate weight is `w` given by the formula:
+
+```python
+w = 1 - beta**t
+```
+
+Now we want to solve for `t` to get a target value of `w`:
+
+![alt text](adam-number-of-steps-to-get-target-weight.png)
+
+```python
+t = ln(1 - w)/ln(beta)
+```
+
+So for:
+
+- For target w = 0.9 and beta = 0.9, t = 22
+- For target w = 0.999 and beta = 0.999, t = 6904
+
+So it would take rougly 22 steps to get to our target weight distribution for the first moment, and 6900 steps for the second moment.
+That's a lot of training iterations before we get to desired state! Bear in mind that at mt[1], the previous step is 0, the value
+is 0.001 * (g**2), which could be a really small value. This would make the denominator of the update formula close to 0.
+This might cause the learning rate to blow up or behave erratically.
+
