@@ -742,31 +742,139 @@ Let's try to factor out the summation to get a simplified formula:
 We get:
 
 ```python
-agg_weight_of_prev_steps = 1 - beta**t
+agg_weight_of_last_gradients = 1 - beta**t
 ```
 
+Note that this is the weight of the current gradient `g[t]`. To exclude
+the current gradient's weight, we can adjust the formula:
+
+![alt text](adam-aggregate-weight-exclusive.png)
+
+```
+agg_weight_of_last_gradients_exclusive = beta - beta**t
+= beta * (1 - beta**(t-1)
+``` 
+
 Now I want to know, how many steps do we need until we get to aggregate weight of 0.9,
-i.e. assume the aggregate weight is `w` given by the formula:
+i.e. assume the aggregate weight is `w` (exclusive of current gradient) given by the formula:
 
 ```python
-w = 1 - beta**t
+w = beta - beta**t
 ```
 
 Now we want to solve for `t` to get a target value of `w`:
 
-![alt text](adam-number-of-steps-to-get-target-weight.png)
+![alt text](adam-number-of-steps-to-target-exclusive-weight.png)
 
 ```python
-t = ln(1 - w)/ln(beta)
+t = ln(beta - w)/ln(beta)
 ```
+
+Notice, if we set target weight `w == beta`, total result witll be `Infinity`. This because
+we never really reach the target aggregate weight. If `beta` is `0.9`, the target weight
+will grow infinitely closer to `0.9` but will never reach it. We're adding
+a sequence of numbers that are exponentially smaller. `0.9` is the limit.
+
+Since we can reach beta, let's pick a close a enough target weight, let's say
+within a percent of the target weight (`0.9 * (1 - 0.1) == 0.891`).
 
 So for:
 
-- For target w = 0.9 and beta = 0.9, t = 22
-- For target w = 0.999 and beta = 0.999, t = 6904
+- For beta = 0.9 and w = 0.891, t = 45
+- For beta = 0.999 and w = 0.98901, t = 4603
 
-So it would take rougly 22 steps to get to our target weight distribution for the first moment, and 6900 steps for the second moment.
+So it would take rougly 45 steps to get to within 1% of the target weight distribution for the first moment, and 4603 steps for the second moment.
 That's a lot of training iterations before we get to desired state! Bear in mind that at mt[1], the previous step is 0, the value
 is 0.001 * (g**2), which could be a really small value. This would make the denominator of the update formula close to 0.
 This might cause the learning rate to blow up or behave erratically.
 
+We need to address this issue so that we can a good split from the first iterations, instead of disproportionately
+favouring the current gradient.
+
+This sets up the stage for the **initialization bias correction** solution. But before I head back to the paper,
+I want to see if I can figure out a bias correction solution on my own, the compare with the paper.
+
+Here's my attempt:
+
+Given the base formula `m[t] = beta * m[t-1] + (1 - beta) * g[t]`, what I want to achieve is to rescale the weights
+for `m[t-1]` and `g[t]` so that they match the desired weights of `beta` and `1-beta` from the early steps. So in case of `beta = 0.9`,
+I want the weight of previous gradients to be `0.9` and the weight of `g[t]` to be 0.1 from the beginning, without
+have to weight for 45+ iterations.
+
+Since the weight of previous gradients is much lower in early iterations, my initial intuition is that we either need to increase its weight
+in early iterations, or decrease the weight of `g[t]`. I will go with former, i.e. attempt to increase the weight of `m[t-1]`.
+
+Let's start with `t = 2`, we already found that
+
+```
+m[2] = 0.9 * m[1] * 0.1g[2] = 0.9 * 0.1g[1] * 0.1g[2] = 0.09 * g[1] + 0.1g2
+```
+
+i.e. the weight of previous gradients is `0.09`. But we want to scale this to `0.9`. Well we can simply
+do that by multiplying by 10 `0.09 * 10 = 0.9`. But we want to generalize the scaling factor. In fact,
+we want a scaling factor that decreases with each time step, and at each step it should multiply the weight of the previous
+gradients so that the output is approx. `beta`.
+
+At m[1], we don't have a previous gradient, so let's skip this.
+At m[2] the weight of previous gradients is 0.09, we want to scale it to 0.9, so the scaling factor is 10.
+
+We expect the scaling factor to reduce and get to 1 around step 44-45 based on the calculation we did to find the step where we reach the target weight.
+
+So we're looking for a function such that:
+
+f(2) = 10
+f(45) = approx 1
+
+How did we get 10 at step 2? well:
+
+![alt text](adam-t2-scaling-factor-breakdown.png)
+
+So:
+
+
+
+f(2) = 1/(1 - beta)
+f(ln(1-beta)/(1-beta)) = approx. 1
+
+
+So this gives us a hint that formula should have some form of (1 - beta) in the denominator, but should be close to 1 at the natural steady state step.
+For the formula to be 1, 1-beta should be 1, so the `beta` term should actually be a term that decreases with each step. Intuitively I feel
+it should decay exponentially, given that we're dealing with an exponential moving average. So what if we raise `beta` to a value proportional to the step.
+
+Since at t2, we have `beta` in the denominator, then perhaps we should raise to `beta ** (t-1)`. So at t2, we'll have beta, at t3 we'll have beta ** 3. At t=1, this is undefined because there are no previous gradients.
+
+So the formula would be:
+
+```
+f(t) = 1/(1 - beta ** (t-1))
+```
+
+So this gives us that factor to multiply the previous gradients by so that we can get to 0.9:
+Let's test this with values we computed for the first few steps:
+
+step | w = orig. weight of prev steps | f(t) = 1 / 1 - beta ** (t-1) | new weight = f(t) * w
+-----|--------------------------------|------------------------------|------------------------
+2    | 0.09                           | 10                           | 0.9
+3    | 0.171                          | 5.263                        | 0.9
+4    | 0.2439                         | 3.69                         | 0.9
+5    | 0.30951                        | 2.9                          | 0.9
+
+It seems to check out so far,
+
+Perhaps a better way to think about is, what do we need to multiply to the initial weight of previous steps to get beta.
+
+![alt text](adam-initial-bias-scaling-factor-derivation.png)
+
+The above equation shows that if the total aggregate weight of previous steps at timestep step is `beta * (1 - beta ** (t-1))`
+then, the scaling factor `f` is what multiplies this to get `beta`, and that turns out to be `beta / (beta * (1 - beta ** (t-1)))`,
+which is the same formula we got above:
+
+```
+f(t) = 1 / (1 - beta ** (t-1))
+```
+
+So the moment formula (starting for m[2]) would then be:
+
+```
+m[t] = (1 / (1 - beta ** (t-1))) * beta * m[t-1] + (1-beta)g[t]
+``` 
