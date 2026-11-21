@@ -502,7 +502,7 @@ gradients. The first moment refers to the mean (mean of g) and the second moment
 (in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance).
 Adam doesn't compute the actual mean and variance, which would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
 
-#### Attempt at deriving Adam algorithm
+#### 4.3.1.a. Attempt at deriving Adam algorithm
 
 The following is my attempt at deriving the Adam formula from my understanding.
 
@@ -793,7 +793,7 @@ This might cause the learning rate to blow up or behave erratically.
 We need to address this issue so that we can a good split from the first iterations, instead of disproportionately
 favouring the current gradient.
 
-#### My attempt at deriving Adam's initialization bias correction
+#### 4.3.1.b My attempt at deriving Adam's initialization bias correction
 
 This sets up the stage for the **initialization bias correction** solution. But before I head back to the paper,
 I want to see if I can figure out a bias correction solution on my own, the compare with the paper.
@@ -915,3 +915,83 @@ I need away to get the scaling to be spread gradually and recursively to all pre
 
 At this pointed i decided to just consult the approach taken by the paper.
 
+#### 4.3.1.c Adam's Initialzation Bias Correction from the paper
+
+The Adam paper takes a different approach at correcting the initialization bias. My attempt
+had fundamental flaws, but still derived some useful terms that make it easier to understand
+the paper's derivation.
+
+**Note**: *The paper uses the second moment `v` to derive the correction, but the same concept works for the first moment `m`.*
+
+First of all, the paper mentions that main flaw of the original moment estimate formula:
+`v[t] = beta2 * v[t-1] * (1 - beta2) * g[t]**2`
+
+Since `v[0]` is initialized to a zero vector, the moment estimates in the first are biased towards 0
+especially in the first timesteps.
+E.g. if `beta2` is `0.999`, then `v[1] = 0.0001 * g[t]**2` and, `v[2] = 0.999(0.0001) * g[1] + 0.0001 * g[2]`.
+
+As you can see, since `v[1]` starts with small weight for `g1`, this small weight carries over and gets
+attenuated in `v[2]` and the small amount of `g[2]` added won't make up for it. So it will take while
+for the gradients to build up.
+
+The larger `beta2` is (i.e. the smaller the decay rate), the more this issue manifests. The issue is exarcebated
+when you have sparse gradients, where most gradients are zero. In this case you have to average over a large
+number of gradients, i.e. a larger effective window which implies a larger `beta2`, which as we've mentioned
+suffers more from zero-bias in the initial timesteps.
+
+**Note**: *The paper does not concern itself, or at least does not mention, maintaining a specific split between current and past gradients' weights as an objective to be concerned with. My fixation with that "issue" might have been the biggest flaw with my earlier attempt*.
+
+To derive a correction for the bias, the paper focuses on the relationship or discrepancy between the estimate of the second moment at timestep t
+from the exponential moving average v[t] to the true second moment.
+
+Since v[t] is an estimate of the second moment at time t, we want to know how the expected
+value of v[t], `E[v[t]]` relates to the true second moment `E[g**2]`. Specifically,
+we want to determine the discrepancy between the two and account for it.
+
+In the earlier attempt, we already found that the exponential average equation:
+
+```
+v[t] = beta * v[t-1] + (1-beta2) * g**2
+```
+
+can be expanded to the following summation:
+
+```python
+v[t] = (1 - beta2) * sum(beta2**(t-i) * g[i]**2 for i in [0..t-1])
+```
+
+We start by taking the expectation of each side of the equation:
+
+![alt text](adam-variance-estimate-expectation-breakdown.png)
+
+No we have an expression based on the sum of expected values of the second moment at
+different timestep. If the distribution of the gradients is globally stationary,
+then we would expect the expected value of the second moment to be the same at each
+timestep t. If it's not truly globally stationary, we should expect a discrepancy
+between the expected value at time t `E[g[t]**2]` and the expected value at some
+other time step i `E[g[i]**2]`. We can express this discrepancy as some
+`error[i] = E[g[i]**2] - E[g[t]**2]`. And therefore `E[g[i]**2] = E[g[t]**2] + error[i]`.
+
+Since this error is a constant for each `i`, we can just accumulate all the errors into a single constant
+that we can extract out of the summation. And since `E[g[t]**2]` is also a constant with respect
+to `i`, we can also extract it from the summation.
+
+![alt text](adam-expected-variance-constant-extraction.png)
+
+And now we have the expression `(1-beta2) * sum(beta2**(t-i) for i in range [1..t-1])`
+which we already found can be simplified to `1 - beta2**t`.
+
+Now, as we mentioned above, if the distribution is stationary, then `E[g[t]**2]` would be the same
+as `E[g[i]**2]`, and therefore the discrepancy term would be 0. But even if the distribution
+is not globally stationary, the algorithm expects us to select a value of `beta2` such that
+the local window around timestep `t` is stationary, and older gradient values which are outside the
+local distribution around `t` have insignificant weight. So we can assume that the discrepancy
+term is near zero.
+
+As a result, the estimated value of the exponential moving average `E[v[t]]` at time `t` is different
+from the true second moment `E[g[t]**2]` roughly by a factor of `(1 - beta**t)` which arises
+from the fact that the exponential moving average starts with a zero vector.
+
+![alt text](adam-estimated-variance-expected-variance-equation-derived.png)
+
+And we have derived the bias correction: we simply divide the moment estimate `v[t]/(1-beta**t)`
