@@ -502,6 +502,8 @@ gradients. The first moment refers to the mean (mean of g) and the second moment
 (in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance).
 Adam doesn't compute the actual mean and variance, which would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
 
+#### Attempt at deriving Adam algorithm
+
 The following is my attempt at deriving the Adam formula from my understanding.
 
 Let's review the SGD update rule again: `param[t + 1] = param[t] - lr * g[t]`.
@@ -791,6 +793,8 @@ This might cause the learning rate to blow up or behave erratically.
 We need to address this issue so that we can a good split from the first iterations, instead of disproportionately
 favouring the current gradient.
 
+#### My attempt at deriving Adam's initialization bias correction
+
 This sets up the stage for the **initialization bias correction** solution. But before I head back to the paper,
 I want to see if I can figure out a bias correction solution on my own, the compare with the paper.
 
@@ -878,3 +882,36 @@ So the moment formula (starting for m[2]) would then be:
 ```
 m[t] = (1 / (1 - beta ** (t-1))) * beta * m[t-1] + (1-beta)g[t]
 ``` 
+
+Let's see if this holds up for a few iterations:
+
+![alt text](adam-bias-correction-attempt-test.png)
+
+We see that for `m[2]` it yields the expected distribution:
+
+```
+m[2] = 0.9g1 + 0.1g2
+```
+
+However, in `m[3]` the aggregate weight of gradients g1 and g2 blows up:
+
+```python
+m3 = 4.263g2 + 0.474g1 + 0.1g3
+```
+
+What went wrong?
+
+The key mistake here is that the formula I came up with assumes that we're multiplying the bias
+rescaling factor to what the original weight would have been without bias correction.
+This assumption holds for `m2` because we apply the bias factor to the original `m2` formula.
+However, it does not work for `m3` because the `m2` term in the `m3` formula already has
+the rescaling factor applied to `g1`. This makes the weight of `g1` an order of magnitude
+higher than it should be.
+
+Consequently, the formula does not work for recursive scenario, where we are expected
+to plug the result of the previous iteration (m[t-1]) in the current iteration's computation.
+
+I need away to get the scaling to be spread gradually and recursively to all previous steps.
+
+At this pointed i decided to just consult the approach taken by the paper.
+
