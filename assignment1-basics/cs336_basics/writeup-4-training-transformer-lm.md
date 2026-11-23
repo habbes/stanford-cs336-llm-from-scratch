@@ -502,6 +502,8 @@ gradients. The first moment refers to the mean (mean of g) and the second moment
 (in this case uncentered variance since the mean is not subtracted from the squared gradients like in "standard" variance).
 Adam doesn't compute the actual mean and variance, which would require storing the full history of gradients and would be inefficient, but only estimates using the last computed value.
 
+#### 4.3.1.a. Attempt at deriving Adam algorithm
+
 The following is my attempt at deriving the Adam formula from my understanding.
 
 Let's review the SGD update rule again: `param[t + 1] = param[t] - lr * g[t]`.
@@ -742,47 +744,65 @@ Let's try to factor out the summation to get a simplified formula:
 We get:
 
 ```python
-agg_weight_of_prev_steps = 1 - beta**t
+agg_weight_of_last_gradients = 1 - beta**t
 ```
 
+Note that this is the weight of the current gradient `g[t]`. To exclude
+the current gradient's weight, we can adjust the formula:
+
+![alt text](adam-aggregate-weight-exclusive.png)
+
+```
+agg_weight_of_last_gradients_exclusive = beta - beta**t
+= beta * (1 - beta**(t-1)
+``` 
+
 Now I want to know, how many steps do we need until we get to aggregate weight of 0.9,
-i.e. assume the aggregate weight is `w` given by the formula:
+i.e. assume the aggregate weight is `w` (exclusive of current gradient) given by the formula:
 
 ```python
-w = 1 - beta**t
+w = beta - beta**t
 ```
 
 Now we want to solve for `t` to get a target value of `w`:
 
-![alt text](adam-number-of-steps-to-get-target-weight.png)
+![alt text](adam-number-of-steps-to-target-exclusive-weight.png)
 
 ```python
-t = ln(1 - w)/ln(beta)
+t = ln(beta - w)/ln(beta)
 ```
 
-And since the target `w` is `beta`:
+Notice, if we set target weight `w == beta`, total result witll be `Infinity`. This because
+we never really reach the target aggregate weight. If `beta` is `0.9`, the target weight
+will grow infinitely closer to `0.9` but will never reach it. We're adding
+a sequence of numbers that are exponentially smaller. `0.9` is the limit.
 
-```python
-t = ln(1 - beta)/ln(beta)
-```
+Since we can reach beta, let's pick a close a enough target weight, let's say
+within a percent of the target weight (`0.9 * (1 - 0.1) == 0.891`).
 
 So for:
 
-- For target w = 0.9 and beta = 0.9, t = 22
-- For target w = 0.999 and beta = 0.999, t = 6904
+- For beta = 0.9 and w = 0.891, t = 45
+- For beta = 0.999 and w = 0.98901, t = 4603
 
-So it would take rougly 22 steps to get to our target weight distribution for the first moment, and 6900 steps for the second moment.
+So it would take rougly 45 steps to get to within 1% of the target weight distribution for the first moment, and 4603 steps for the second moment.
 That's a lot of training iterations before we get to desired state! Bear in mind that at mt[1], the previous step is 0, the value
 is 0.001 * (g**2), which could be a really small value. This would make the denominator of the update formula close to 0.
 This might cause the learning rate to blow up or behave erratically.
 
-This is a problem we need to address. The Adam paper fixes this issue with a initalization bias correction factor.
-But before referring to the paper's solution, as personal challenge, I want to see if I can derive a solution for this on my own.
+#### 4.3.1.b My attempt at deriving Adam's initialization bias correction
+
+**Note**: *This attempt has a fundamental flaw which I return to revise after explaining the paper's approach*.
+
+This sets up the stage for the **initialization bias correction** solution. But before I head back to the paper,
+I want to see if I can figure out a bias correction solution on my own, the compare with the paper.
+
+Here's my attempt:
 
 Given the base formula `m[t] = beta * m[t-1] + (1 - beta) * g[t]`, what I want to achieve is to rescale the weights
 for `m[t-1]` and `g[t]` so that they match the desired weights of `beta` and `1-beta` from the early steps. So in case of `beta = 0.9`,
 I want the weight of previous gradients to be `0.9` and the weight of `g[t]` to be 0.1 from the beginning, without
-have to weight for 22 iterations.
+have to weight for 45+ iterations.
 
 Since the weight of previous gradients is much lower in early iterations, my initial intuition is that we either need to increase its weight
 in early iterations, or decrease the weight of `g[t]`. I will go with former, i.e. attempt to increase the weight of `m[t-1]`.
@@ -798,16 +818,15 @@ do that by multiplying by 10 `0.09 * 10 = 0.9`. But we want to generalize the sc
 we want a scaling factor that decreases with each time step, and at each step it should multiply the weight of the previous
 gradients so that the output is approx. `beta`.
 
-at m[1], we don't have a previous gradient, so let's skip this.
-
+At m[1], we don't have a previous gradient, so let's skip this.
 At m[2] the weight of previous gradients is 0.09, we want to scale it to 0.9, so the scaling factor is 10.
 
-We expect the scaling factor to reduce and get to 1 around step 21-22 based on the calculation we did to find the step where we reach the target weight.
+We expect the scaling factor to reduce and get to 1 around step 44-45 based on the calculation we did to find the step where we reach the target weight.
 
 So we're looking for a function such that:
 
-- f(2) = 10
-- f(22) = 1 (approx)
+f(2) = 10
+f(45) = approx 1
 
 How did we get 10 at step 2? well:
 
@@ -815,15 +834,17 @@ How did we get 10 at step 2? well:
 
 So:
 
-- f(2) = 1/(1 - beta)
-- f(ln(1-beta)/(1-beta)) = approx. 1
+
+
+f(2) = 1/(1 - beta)
+f(ln(1-beta)/(1-beta)) = approx. 1
+
 
 So this gives us a hint that formula should have some form of (1 - beta) in the denominator, but should be close to 1 at the natural steady state step.
 For the formula to be 1, 1-beta should be 1, so the `beta` term should actually be a term that decreases with each step. Intuitively I feel
 it should decay exponentially, given that we're dealing with an exponential moving average. So what if we raise `beta` to a value proportional to the step.
 
-Since at t2, we have `beta` in the denominator, then perhaps we should raise to `beta ** (t-1)`. So at t2, we'll have beta, at t3 we'll have beta ** 3. At t=1, this is undefined
-because there are no previous gradients.
+Since at t2, we have `beta` in the denominator, then perhaps we should raise to `beta ** (t-1)`. So at t2, we'll have beta, at t3 we'll have beta ** 3. At t=1, this is undefined because there are no previous gradients.
 
 So the formula would be:
 
@@ -832,7 +853,6 @@ f(t) = 1/(1 - beta ** (t-1))
 ```
 
 So this gives us that factor to multiply the previous gradients by so that we can get to 0.9:
-
 Let's test this with values we computed for the first few steps:
 
 step | w = orig. weight of prev steps | f(t) = 1 / 1 - beta ** (t-1) | new weight = f(t) * w
@@ -860,4 +880,242 @@ So the moment formula (starting for m[2]) would then be:
 
 ```
 m[t] = (1 / (1 - beta ** (t-1))) * beta * m[t-1] + (1-beta)g[t]
+``` 
+
+Let's see if this holds up for a few iterations:
+
+![alt text](adam-bias-correction-attempt-test.png)
+
+We see that for `m[2]` it yields the expected distribution:
+
 ```
+m[2] = 0.9g1 + 0.1g2
+```
+
+However, in `m[3]` the aggregate weight of gradients g1 and g2 blows up:
+
+```python
+m3 = 4.263g2 + 0.474g1 + 0.1g3
+```
+
+What went wrong?
+
+The key mistake here is that the formula I came up with assumes that we're multiplying the bias
+rescaling factor to what the original weight would have been without bias correction.
+This assumption holds for `m2` because we apply the bias factor to the original `m2` formula.
+However, it does not work for `m3` because the `m2` term in the `m3` formula already has
+the rescaling factor applied to `g1`. This makes the weight of `g1` an order of magnitude
+higher than it should be.
+
+Consequently, the formula does not work for recursive scenario, where we are expected
+to plug the result of the previous iteration (m[t-1]) in the current iteration's computation.
+
+I need away to get the scaling to be spread gradually and recursively to all previous steps.
+
+At this pointed i decided to just consult the approach taken by the paper.
+
+#### 4.3.1.c Adam's Initialzation Bias Correction from the paper
+
+The Adam paper takes a different approach at correcting the initialization bias. My attempt
+had fundamental flaws, but still derived some useful terms that make it easier to understand
+the paper's derivation.
+
+**Note**: *The paper uses the second moment `v` to derive the correction, but the same concept works for the first moment `m`.*
+
+First of all, the paper mentions that main flaw of the original moment estimate formula:
+`v[t] = beta2 * v[t-1] * (1 - beta2) * g[t]**2`
+
+Since `v[0]` is initialized to a zero vector, the moment estimates in the first are biased towards 0
+especially in the first timesteps.
+E.g. if `beta2` is `0.999`, then `v[1] = 0.0001 * g[t]**2` and, `v[2] = 0.999(0.0001) * g[1] + 0.0001 * g[2]`.
+
+As you can see, since `v[1]` starts with small weight for `g1`, this small weight carries over and gets
+attenuated in `v[2]` and the small amount of `g[2]` added won't make up for it. So it will take while
+for the gradients to build up.
+
+The larger `beta2` is (i.e. the smaller the decay rate), the more this issue manifests. The issue is exarcebated
+when you have sparse gradients, where most gradients are zero. In this case you have to average over a large
+number of gradients, i.e. a larger effective window which implies a larger `beta2`, which as we've mentioned
+suffers more from zero-bias in the initial timesteps.
+
+**Note**: *The paper does not concern itself, or at least does not mention, maintaining a specific split between current and past gradients' weights as an objective to be concerned with. My fixation with that "issue" might have been the biggest flaw with my earlier attempt*.
+
+To derive a correction for the bias, the paper focuses on the relationship or discrepancy between the estimate of the second moment at timestep t
+from the exponential moving average v[t] to the true second moment.
+
+Since v[t] is an estimate of the second moment at time t, we want to know how the expected
+value of v[t], `E[v[t]]` relates to the true second moment `E[g**2]`. Specifically,
+we want to determine the discrepancy between the two and account for it.
+
+In the earlier attempt, we already found that the exponential average equation:
+
+```
+v[t] = beta * v[t-1] + (1-beta2) * g**2
+```
+
+can be expanded to the following summation:
+
+```python
+v[t] = (1 - beta2) * sum(beta2**(t-i) * g[i]**2 for i in [0..t-1])
+```
+
+We start by taking the expectation of each side of the equation:
+
+![alt text](adam-variance-estimate-expectation-breakdown.png)
+
+No we have an expression based on the sum of expected values of the second moment at
+different timestep. If the distribution of the gradients is globally stationary,
+then we would expect the expected value of the second moment to be the same at each
+timestep t. If it's not truly globally stationary, we should expect a discrepancy
+between the expected value at time t `E[g[t]**2]` and the expected value at some
+other time step i `E[g[i]**2]`. We can express this discrepancy as some
+`error[i] = E[g[i]**2] - E[g[t]**2]`. And therefore `E[g[i]**2] = E[g[t]**2] + error[i]`.
+
+Since this error is a constant for each `i`, we can just accumulate all the errors into a single constant
+that we can extract out of the summation. And since `E[g[t]**2]` is also a constant with respect
+to `i`, we can also extract it from the summation.
+
+![alt text](adam-expected-variance-constant-extraction.png)
+
+And now we have the expression `(1-beta2) * sum(beta2**(t-i) for i in range [1..t-1])`
+which we already found can be simplified to `1 - beta2**t`.
+
+Now, as we mentioned above, if the distribution is stationary, then `E[g[t]**2]` would be the same
+as `E[g[i]**2]`, and therefore the discrepancy term would be 0. But even if the distribution
+is not globally stationary, the algorithm expects us to select a value of `beta2` such that
+the local window around timestep `t` is stationary, and older gradient values which are outside the
+local distribution around `t` have insignificant weight. So we can assume that the discrepancy
+term is near zero.
+
+As a result, the estimated value of the exponential moving average `E[v[t]]` at time `t` is different
+from the true second moment `E[g[t]**2]` roughly by a factor of `(1 - beta2**t)` which arises
+from the fact that the exponential moving average starts with a zero vector.
+
+![alt text](adam-estimated-variance-expected-variance-equation-derived.png)
+
+And we have derived the bias correction: we simply divide the moment estimate `v[t]/(1-beta2**t)`
+
+So we'll create new variables to correct the estimates:
+
+```python
+m_hat[t] = m[t] / (1 - beta**t)
+```
+
+```python
+v_hat[t] = v[t] / (1 - beta2**t)
+```
+
+Let me test this by computing the weights of a few iterations. I'm going to use the first moment `m` instead
+of `v` so that I can compare the values with results I got when I attempted to derive the bias correction:
+
+![alt text](adam-bias-correction-computations-for-m1-to-m3.png)
+
+So we have:
+
+```
+m[1] = 0.1g[1]
+m_hat[1] = 1g[1]
+
+m[2] = 0.09g[1] + 0.1g[2]
+m_hat[2] = 0.474g1 + 0.526g2
+
+m[3] = 0.081g1 + 0.09g2 + 0.1g3
+m_hat[3] = 0.299g1 + 0.332g2 + 0.369g3
+```
+
+One key observation is that the weights now add up to 1, but does not force a 0.9-0.1 split.
+Indeed, it doesn't make sense to force a 0.9-0.1 split early on when there aren't enough
+past gradient values to distribute the 0.9 weight over.
+
+Looking at the numbers makes me appreciate the properties of this approach, as well as the flaws in my
+earlier attempt more clearly:
+
+- m[1] has only gradient, it makes sense to use the full g1 value for this estimate since it's the only one available. It doesn't make sense to attenuate it.
+- The key issue that the correction is trying to solve is that without it, we have unnecessarily small weights for the initial values.
+- The correction also normalizes the weights to add up to 1 from the first iteration.
+- The correction also ensures that the latest gradient has the largest individual weight
+- The correction ensures that the weights decay as the gradients get older. (need to verify that decay is exponentia;)
+- When we have sufficiently many gradients and beta > 0.5, the aggregate weights of the older gradients exceed the weight of the latest gradient (the number of gradients it takes to reach this depends on beta)
+- The higher the iteration, the closer we approach to the 0.9 - 0.1 split between the older and current gradients, but
+this split is not forced, it emerges gradually as we get more and more gradients to distribute the weights over.
+- We create new variables for the bias-corrected estimates `m_hat[t]` and `v_hat[t]` instead of overwriting `m[t]` and `v[t]`. This means
+the original values of `m[t]` and `v[t]` are preserved for the next iteration, making this approach suitable
+for a recursive algorithm.
+
+
+Out of curiosity, we can ask ourselves, how many iterations will it take for the gradients weights to reach a 0.9-0.1 split.
+
+We know that in `m[t]`, the weight of the current gradient `g[t]` is `1-beta`, so in `m_hat[t]`, the weight will be adjusted
+to `(1-beta)/(1-beta**t)`. So what we're asking as at what timestep `t` does this adjusted weight reach `0.1`. Well
+it will never reach 0.1, but it will get infinitely closer to 0.1 as the weight of the latest gradient gets smaller with
+each iteration.
+
+![alt text](adam-equation-iterations-to-target-weight-of-latest-gradient-after-bias-correction.png)
+
+So we use the formula:
+
+```
+t = ln(1 - (1-beta)/w) / ln(beta)
+```
+
+(Note that if `w == 1-beta`, we have the undefined `log(0)`, but the limit is infinity).
+
+- For `beta = 0.9` and `w = 0.11`, `t = 23 (approx)`
+- For `beta = 0.999` and `w = 0.0011`, `t = 2397 (approx)`
+
+Surprised to find that in the case of `0.9`, I get a figure that's close to what I had gotten when I was
+checking how many steps it would take to reach 0.9-0.1 split using the unadjusted `m[t]` formula (not
+sure if I still have that in this doc, I may have removed it). But the difference is much larger
+when beta is 0.999, in my earlier calculations it was > 6k, so perhaps it's just a coincidence that
+it maches closely for 0.9.
+
+#### 4.3.1.e Reviewing the fatal flaws in my attempt to derive Adam's bias correction
+
+In my approach, enforcing the 0.9-0.1 split causes a major issue. Let's say we have 3 gradients, and the latest gradient
+is forced to have weight 0.1, if we distribute 0.9 over the remaining 2 then at least one of them must have a weight
+greater than 0.1, i.e. greater than the weight of the current gradient. This breaks key properties and assumptions
+of the algorithm, i.e. that latest gradient has the largest individual weight and that weights of older gradients
+decay exponentially. I noticed this contradiction when thinking about my approach but at that point I was
+mentally exhausted and stuck and didn't know what to do, which is one of the reasons I decided to look at the paper.
+But it should have been evidence that trying to force 0.9-0.1 split was wrong from the start.
+
+But after noticing that in Adam's bias correction approach, the weights add up to 1, I feel like my intuition
+was probably not as far off as I thought. If I change my thinking from forcing a 0.9 weight for older
+gradients, to forcing an total aggregate weight of 1, then maybe there's a shot. But conceptually,
+why is forcing an aggregate weight of 1 a desirable thing?
+
+Well at `m[1]`, we assign weight `0.1` to `g[1]`. But this small weight assumes that there many other
+gradients which share the remaining `0.9`. But at the beginning there are no other gradients due to
+the zero initialization. So we unnecessarily penalize `g[1]`. And in subsequent iterations,
+the few existing gradients continue to get penalized, contributing a small aggregate weight
+even though there are no other gradients to consume the "unallocated" weight. The spirit of the
+correction is to allocate the "entire" weight to the existing gradients without leaving any
+"unallocated" weight to non-existing gradients. So if we allocate all the weight to existing
+gradients, then the weights should sum up to 1.
+
+We also want to preserve the other properties,
+i.e. that the latest gradient has the individual largest weight, that weights decay
+as gradients get older and when we have sufficient gradients, the aggregate
+weight of previous gradients will exceed that of the latest. The original `m[t]` already
+bears some of these properties:
+- The latest gradient has weight `1-beta` which is always the largest individual, since all gradients start with 1-beta and get progressively attenuated in each iteraton by being multiplied by beta which is < 1.
+
+We already calculated the total weight of all gradients: `1 - beta**t`. In my earlier
+attempt I had asked the question, what factor can I mulitply the previous weights by to get `1-beta`.
+Now I can ask a simpler question, what factor can I multiply the total aggregate weights by to get `1`.
+
+```
+f * (1 - beta ** t) = 1
+f = 1 / (1 - beta ** t)
+```
+
+So I just divide by `(1 - beta ** t)`?
+
+So if we divide all gradients by (1 - beta ** t), the aggregate weight will be 1, what about the other properties:
+
+- If all weights add up to 1, and the weight of the latest gradient approaches (1 - beta), then after sufficient iterations,
+the remaining weights will have aggregate weight close to beta, which is greater than (1- beta).
+
+Will this matches the solution appears to match the from the paper, I think the justification is not as robust as the
+statistical grounding of the paper. But it was still interesting to see if an adjustment of my earlier reasoning
+would have led me to the same conclusion, even if with weaker mathematical support.
